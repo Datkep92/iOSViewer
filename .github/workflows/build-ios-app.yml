@@ -24,6 +24,7 @@ jobs:
           set -euo pipefail
           sdkroot="$(xcrun --sdk iphoneos --show-sdk-path)"
           swift build -c release \
+            --package-path iOSViewer \
             --triple arm64-apple-ios16.0 \
             --product iOSViewerApp \
             -Xswiftc -sdk -Xswiftc "$sdkroot"
@@ -32,7 +33,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p Payload/iOSViewer.app
-          cp .build/arm64-apple-ios16.0/release/iOSViewerApp Payload/iOSViewer.app/iOSViewer
+          cp iOSViewer/.build/arm64-apple-ios16.0/release/iOSViewerApp Payload/iOSViewer.app/iOSViewer
           cp iOSViewerApp-Info.plist Payload/iOSViewer.app/Info.plist
           codesign --force --sign - Payload/iOSViewer.app
 
