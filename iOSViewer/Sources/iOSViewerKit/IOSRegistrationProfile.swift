@@ -50,7 +50,7 @@ public enum IOSRegistrationProfile {
         return try loadOrCreate(in: directory, environment: environment)
     }
 
-    static func loadOrCreate(in directory: URL,
+    private static func loadOrCreate(in directory: URL,
                              environment: Environment) throws -> ClientRegistration.Request {
         let manager = FileManager.default
         try manager.createDirectory(at: directory, withIntermediateDirectories: true,
