@@ -35,7 +35,12 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p Payload/iOSViewer.app
-          cp iOSViewer/.build/arm64-apple-ios16.0/release/iOSViewerApp Payload/iOSViewer.app/iOSViewer
+          app_binary="$(find iOSViewer/.build -type f -name iOSViewerApp | sed -n '1p')"
+          if [ -z "$app_binary" ]; then
+            echo "Built iOSViewerApp executable was not found" >&2
+            exit 1
+          fi
+          cp "$app_binary" Payload/iOSViewer.app/iOSViewer
           cp iOSViewerApp-Info.plist Payload/iOSViewer.app/Info.plist
           codesign --force --sign - Payload/iOSViewer.app
 
