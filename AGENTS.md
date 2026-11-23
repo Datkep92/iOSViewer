@@ -38,17 +38,17 @@ Trên iPhone này **không có toolchain Swift**, nên không chạy được `s
 
 **GitHub Actions (đã thiết lập):** đẩy lên `main` hoặc chạy tay workflow `.github/workflows/build-ios-app.yml`. Máy macOS có Xcode sẽ chạy kiểm tra tĩnh, build sản phẩm `iOSViewerApp` cho iOS 16, đóng gói `Payload/iOSViewer.app`, ký tạm bằng `codesign --force --sign -` rồi xuất artifact `iOSViewer-packages` gồm hai tệp: `iOSViewer.ipa` (dùng với TrollStore nếu máy đã cài TrollStore) và `iOSViewer.deb` (gói rootless `iphoneos-arm64`, cài bằng Sileo, đặt app tại `/var/jb/Applications/iOSViewer.app`). Cả hai **chưa ký chính thức**; `.deb` chỉ cài được trên iPhone đã jailbreak rootless. Phân phối chính thức cần thêm chứng chỉ và provisioning profile vào workflow.
 
-Khi ghép app bundle, phải chọn tệp thực thi Mach-O (`MH_EXECUTE`) trong `.build`, không lấy tệp đầu tiên trùng tên — tệp dSYM cùng tên sẽ làm TrollStore báo `Unsupported Mach-O type`. Workflow hiện lọc bằng `file -b ... | grep 'Mach-O.*executable'`. Lần kiểm chứng gần nhất: run `45108331010` thành công; IPA chứa tệp thực thi arm64 đúng, DEB đúng đường dẫn rootless. Chưa thử cài lại trên máy.
+Khi ghép app bundle, phải chọn tệp thực thi Mach-O (`MH_EXECUTE`) trong `.build`, không lấy tệp đầu tiên trùng tên — tệp dSYM cùng tên sẽ làm TrollStore báo `Unsupported Mach-O type`. Workflow hiện lọc bằng `file -b ... | grep 'Mach-O.*executable'`. Lần kiểm chứng gần nhất: run `45170827408` (commit `1703195`, chạy tay với `include_dictionary=true`) thành công, artifact `iOSViewer-packages-device` có từ điển riêng. Để cài trên máy này, script local `apelin/install-device-build.sh` tải artifact đó rồi Apelin build/install; **không** dùng artifact `iOSViewer-packages` thường vì bản đó không có từ điển.
 
 **Máy có Xcode 15+:** dùng trực tiếp sản phẩm `iOSViewerApp` trong `iOSViewer/Package.swift`, hoặc thêm package local `iOSViewer/Package.swift` vào một iOS App target và dùng `iOSViewerRootViewController()` làm root. Scene delegate `iOSViewerSceneDelegate` đã được khai báo trong `iOSViewerApp-Info.plist` và trong mã app.
 
-Trước khi kết nối phải chọn tệp `8bit.dat` trong app.
+Bản riêng đã nhúng `8bit.dat` nên không cần chọn tệp trong app; bản sạch bắt người dùng tự cung cấp tệp hợp pháp.
 
 ## Giới hạn trên iPhone hiện tại
 
 - Thiết bị **không có toolchain**; CPU thiếu `FEAT_LRCPC`. Không build, không chạy test Swift, không respring hay cài toolchain ở đây.
-- **Chưa biên dịch, chưa chạy thật** trên iPhone này: mọi kết nối, hiển thị khung hình và thao tác chạm chưa được kiểm chứng bằng thiết bị; mới chỉ có kết quả kiểm tra tĩnh. Kết quả workflow Actions cần được đọc trên tab Actions sau mỗi lần đẩy.
-- Cần **người dùng cung cấp `8bit.dat` hợp pháp** (112.640 byte, SHA-256 `9aa45789d9ff9d329a623a685d57b67e33c777019de9ce1f273f21860e4bfe6b`). Kho này không chứa, không sao chép và không commit tệp đó hay blob bản quyền nào.
+- Đã cài bản riêng mới lên máy và kiểm tra tệp thực thi, từ điển đúng băm. Người dùng xác nhận app báo `Đã sẵn sàng từ điển 8bit.dat.`; lỗi tiếp theo là không ghi được hồ sơ đăng ký, đã sửa ở `IOSRegistrationProfile.swift` nhưng **chưa thử lại sau khi cài bản sửa**. Kết nối thật, khung hình và thao tác chạm vẫn chưa được kiểm chứng.
+- Cần **người dùng cung cấp `8bit.dat` hợp pháp** (112.640 byte, SHA-256 `9aa45789d9ff9d329a623a685d57b67e33c777019de9ce1f273f21860e4bfe6b`) cho bản sạch/máy khác. Kho này không chứa, không sao chép và không commit tệp đó hay blob bản quyền nào.
 - Chưa có UIKit cho âm thanh máy tính, bảng nhớ tạm, chat, truyền tệp, đổi chiều điều khiển và lớp vẽ con trỏ; chưa xử lý CAPTCHA/xác thực bổ sung.
 - Không dùng AppKit, storyboard hay Theos. Kết nối trực tiếp LAN bị tắt để khỏi xin quyền Local Network.
 
