@@ -12,11 +12,11 @@ Luật làm việc chung của mọi dự án nằm ở skill `sep-working-rules
 - `iOSViewer/Sources/UltraViewerProtocol/` — giao thức từ MacViewer: đăng ký client, tra cứu peer, mã hóa cũ, đóng khung TCP, relay/peer transport, giải mã màn hình, lệnh chuột/phím, từ điển giải mã `8bit.dat`.
 - `iOSViewer/Sources/CZstd/`, `iOSViewer/Sources/CG722/` — mã nguồn C kèm license riêng.
 - `iOSViewer/Sources/iOSViewerKit/` — hồ sơ đăng ký iOS, điều khiển phiên, ảnh màn hình, giao diện UIKit, scene delegate.
-- `iOSViewer/Sources/iOSViewerApp/` — điểm vào `UIApplicationMain`, cấu hình scene, dùng `iOSViewerRootViewController` làm màn hình gốc.
+- `iOSViewer/Sources/iOSViewerApp/` — điểm vào `UIApplicationMain`, cấu hình scene, dùng `iOSViewerRootViewController()` làm màn hình gốc.
 - `iOSViewer/Sources/iOSViewerScaffold/` — scaffold SwiftPM cũ, chỉ in thông báo, **không** tạo app bundle.
 - `iOSViewer/Tests/iOSViewerKitTests/` — test gói.
 - `iOSViewer/Scripts/check_ios_viewer.py` — kiểm tra tĩnh, không cần build hay toolchain.
-- `iOSViewerApp-Info.plist` — Info.plist của app: bundle id `local.apelin.iOSViewer`, khai báo scene, iOS 16.
+- `iOSViewerApp-Info.plist` — Info.plist của app: bundle id `local.apelin.iOSViewer`, khai báo scene, iOS 16, xoay dọc và ngang hai chiều.
 - `.github/workflows/build-ios-app.yml` — workflow GitHub Actions build app trên macOS, đóng gói `.ipa` và upload artifact.
 - `README.md`, `iOSViewer/THIRD_PARTY_NOTICES.md` — tài liệu và thông báo bản quyền.
 
@@ -28,9 +28,9 @@ Từ root project:
 python3 iOSViewer/Scripts/check_ios_viewer.py
 ```
 
-Kết quả lần chạy gần nhất (23/11/2026, sau khi thêm target app và workflow): **ĐẠT: 532/532 kiểm tra tĩnh**, mã thoát 0.
+Bộ kiểm tra có thêm needle cho giao diện mới: xoay ngang (`LandscapeLeft`, `LandscapeRight`), toàn màn hình, chổm/phóng to (`UIPinchGestureRecognizer`, `zoomScale`, `zoomIn`, `resetZoom`) và nhóm công cụ (`remote-tool-` cùng các hàm gửi lệnh). Chạy lệnh trên để lấy kết quả hiện tại; mốc **532/532** ghi ngày 23/11/2026 là trước khi thêm các needle này.
 
-Bộ kiểm tra cũng chặn: `.macOS(` / `AppKit`, tệp `8bit.dat` nằm trong package, resource `.copy(`/`.process(`, và chuỗi Swift bị cấm.
+Bộ kiểm tra cũng chặn: `.macOS(` / `AppKit`, tệp `8bit.dat` nằm trong package, resource `.copy(`/`.process(`, và chuỗi Swift bị cấm. Các needle `wheel(delta:`, `verticalWheel`, `wheelWParam` vẫn được giữ.
 
 ## Build và thử
 
@@ -44,13 +44,23 @@ Khi ghép app bundle, phải chọn tệp thực thi Mach-O (`MH_EXECUTE`) trong
 
 Bản riêng đã nhúng `8bit.dat` nên không cần chọn tệp trong app; bản sạch bắt người dùng tự cung cấp tệp hợp pháp.
 
+## Giao diện mới (xoay / toàn màn hình / zoom / công cụ)
+
+- **Xoay:** app hỗ trợ dọc và ngang trái/phải; xoay máy để xem khung hình rộng hơn.
+- **Toàn màn hình:** nút trên thanh công cụ (định danh/thao tác dạng `remote-tool-`) để vào và thoát chế độ toàn màn hình.
+- **Zoom:** chổm hai ngón trên khung hình để phóng to/thu nhỏ; có nút tăng zoom và nút đặt lại mức zoom. Khi đã phóng to, kéo/vuốt để xem các vùng ngoài khung.
+- **Nhóm công cụ điều khiển từ xa:** chat, bảng nhớ tạm, bàn phím, gửi tệp và chấp nhận tệp, âm thanh máy tính, bật/tắt hiển thị con trỏ, chất lượng hình, hình nền, hành động và đổi chiều điều khiển (side switch). Các nút dùng chung tiền tố `remote-tool-`.
+- **Cách dùng cơ bản:** mở app → đợi thông báo sẵn sàng từ điển → kết nối tới máy Windows → dùng các nút trên thanh công cụ. Thao tác khung hình giữ nguyên: chạm ngắn = click trái, chạm đôi = click đôi, giữ lâu = click phải, kéo một ngón = diệt chuột, vuốt hai ngón = cuộn dọc; thêm chổm hai ngón để zoom.
+
+**CHƯA kiểm chứng trên Windows:** bàn phím, âm thanh máy tính, đổi chiều điều khiển (side switch), truyền tệp (gửi và chấp nhận), phím tắt/hành động. Checker tĩnh đạt chỉ chứng minh có mã trở thành công cụ trên giao diện, **không** chứng minh máy Windows nhận và xử lý đúng. Không ghi nhận các mục này là đã xong khi chưa thử trên máy Windows thật.
+
 ## Giới hạn trên iPhone hiện tại
 
 - Thiết bị **không có toolchain**; CPU thiếu `FEAT_LRCPC`. Không build, không chạy test Swift, không respring hay cài toolchain ở đây.
 - Đã cài bản riêng mới lên máy và kiểm tra tệp thực thi, từ điển đúng băm. Người dùng xác nhận app báo `Đã sẵn sàng từ điển 8bit.dat.` và **đã kết nối được tới máy Windows**. Khung hình và thao tác chạm đang được kiểm chứng tiếp.
 - Điều khiển trên màn hình: chạm ngắn = click trái, chạm đôi = click đôi, giữ lâu = click phải, kéo một ngón = diệt chuột, vuốt hai ngón = cuộn dọc. Nếu máy Windows để chế độ chỉ xem, app báo rõ và không gửi lệnh. Chưa hỗ trợ kéo thả giữ nút chuột liên tục.
 - Cần **người dùng cung cấp `8bit.dat` hợp pháp** (112.640 byte, SHA-256 `9aa45789d9ff9d329a623a685d57b67e33c777019de9ce1f273f21860e4bfe6b`) cho bản sạch/máy khác. Kho này không chứa, không sao chép và không commit tệp đó hay blob bản quyền nào.
-- Chưa có UIKit cho âm thanh máy tính, bảng nhớ tạm, chat, truyền tệp, đổi chiều điều khiển và lớp vẽ con trỏ; chưa xử lý CAPTCHA/xác thực bổ sung.
+- Nhóm công cụ mới (xem mục trên) đang được tích hợp; **chưa kiểm chứng trên Windows**, nhất là bàn phím, âm thanh, đổi chiều, truyền tệp và phím tắt. Lớp vẽ con trỏ riêng vẫn chưa có; chưa xử lý CAPTCHA/xác thực bổ sung.
 - Không dùng AppKit, storyboard hay Theos. Kết nối trực tiếp LAN bị tắt để khỏi xin quyền Local Network.
 
 ## Git

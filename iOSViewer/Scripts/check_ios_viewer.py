@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Kiểm tra tĩnh bản port iOSViewer không cần toolchain hay build trên máy."""
+"""Kiểm tra tĩnh bản port iOSViewer không cần toolchain hay build trên máy.
+
+Phần kiểm tra giao diện mới chỉ xác nhận mã nguồn và Info.plist có các
+thành phần: xoay ngang, toàn màn hình, phóng to ảnh và nhóm công cụ điều
+khiển. Đây là kiểm tra hiện diện (needle), không chứng minh hành vi chạy
+thật trên máy Windows.
+"""
 from pathlib import Path
 import sys
 
@@ -33,6 +39,12 @@ check(".macOS(" not in package and "AppKit" not in package, "Package.swift còn 
 check("8bit.dat" not in package, "Package.swift không được khai báo tài nguyên 8bit.dat")
 check(".copy(" not in package and ".process(" not in package,
       "Package.swift không được đóng gói tài nguyên nhị phân")
+
+plist_path = ROOT / "iOSViewerApp-Info.plist"
+plist = read(plist_path)
+check(plist_path.is_file(), "Thiếu iOSViewerApp-Info.plist")
+for needle in ("UIInterfaceOrientationLandscapeLeft", "UIInterfaceOrientationLandscapeRight"):
+    check(needle in plist, f"Info.plist chưa khai báo xoay ngang: {needle}")
 
 files = sorted(p for p in IOS.rglob("*") if p.is_file())
 for path in files:
@@ -78,13 +90,22 @@ for header in ("Sources/CZstd/include/CZstd.h", "Sources/CG722/include/MacViewer
     check((IOS / header).is_file(), f"Thiếu header nguồn C: {header}")
 
 uikit = read(IOS / "Sources/iOSViewerKit/iOSViewerRootViewController.swift")
-for needle in ("UIViewController", "UITextField", "UIDocumentPickerViewController", "UITextView", "NSLayoutConstraint"):
+# remote-tool- là tiền tố chung cho identifier và action của các nút công cụ.
+for needle in ("UIViewController", "UITextField", "UIDocumentPickerViewController", "UITextView",
+               "NSLayoutConstraint", "remote-tool-"):
     check(needle in uikit, f"Giao diện UIKit thiếu {needle}")
+check("fullscreen" in uikit.lower(), "Giao diện UIKit thiếu chế độ toàn màn hình (fullscreen)")
 view = read(IOS / "Sources/iOSViewerKit/RemoteScreenImageView.swift")
-for needle in ("UIImageView", "UITapGestureRecognizer", "UILongPressGestureRecognizer", "UIPanGestureRecognizer", "wheel(delta:", "remotePoint"):
+for needle in ("UIImageView", "UITapGestureRecognizer", "UILongPressGestureRecognizer", "UIPanGestureRecognizer",
+               "wheel(delta:", "horizontalWheel", "remotePoint", "UIPinchGestureRecognizer", "zoomScale",
+               "zoomIn", "resetZoom"):
     check(needle in view, f"Chế độ xem màn hình thiếu {needle}")
 controller = read(IOS / "Sources/iOSViewerKit/ViewerSessionController.swift")
-for needle in ("UltraViewerRelaySession", "frame", "MouseMessage", "sendPointer", "verticalWheel", "wheelWParam"):
+for needle in ("UltraViewerRelaySession", "frame", "MouseMessage", "sendPointer", "verticalWheel",
+               "horizontalWheel", "wheelWParam",
+               "sendChat", "sendClipboardText", "sendKeyboardText", "sendFile", "acceptLastFileOffer",
+               "setComputerAudioEnabled", "setCursorPositionsEnabled", "setQuality", "setWallpaperVisible",
+               "sendAction", "requestSideSwitch"):
     check(needle in controller, f"Bộ điều khiển phiên thiếu {needle}")
 
 readme = read(ROOT / "README.md")

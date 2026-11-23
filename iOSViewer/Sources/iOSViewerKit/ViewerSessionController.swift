@@ -17,6 +17,16 @@ public final class ViewerSessionController {
     public private(set) var state: State = .idle
     public private(set) var log: [String] = []
 
+    /// Latest values received from the Windows host, exposed for the UI.
+    public private(set) var lastChatText: String = ""
+    public private(set) var lastClipboardText: String = ""
+    public private(set) var pendingFileOfferID: String?
+    public private(set) var pendingFileOfferName: String?
+
+    public var hasPendingFileOffer: Bool {
+        pendingFileOfferID != nil && pendingFileOfferName != nil
+    }
+
     private var session: UltraViewerRelaySession?
     private var eventsTask: Task<Void, Never>?
     private var peer: UltraViewerRelaySession.Peer?
@@ -76,6 +86,10 @@ public final class ViewerSessionController {
         self.inputAllowed = false
         self.warnedAboutInputPermission = false
         self.reportedFirstPointer = false
+        self.lastChatText = ""
+        self.lastClipboardText = ""
+        self.pendingFileOfferID = nil
+        self.pendingFileOfferName = nil
         self.state = .connecting
         self.onState?(state)
         report("Đang tìm \(id) qua dịch vụ UltraViewer…")
@@ -102,6 +116,10 @@ public final class ViewerSessionController {
         inputAllowed = false
         warnedAboutInputPermission = false
         reportedFirstPointer = false
+        lastChatText = ""
+        lastClipboardText = ""
+        pendingFileOfferID = nil
+        pendingFileOfferName = nil
         peer = nil
         state = .idle
         onState?(state)
@@ -140,6 +158,9 @@ public final class ViewerSessionController {
         case let .wheel(delta):
             messages = [.verticalWheel(wParam: MouseMessage.wheelWParam(delta: delta, keyFlags: 0),
                                        lParam: position)]
+        case let .horizontalWheel(delta):
+            messages = [.horizontalWheel(wParam: MouseMessage.wheelWParam(delta: delta, keyFlags: 0),
+                                         lParam: position)]
         }
         if !reportedFirstPointer {
             reportedFirstPointer = true
@@ -157,6 +178,233 @@ public final class ViewerSessionController {
                 }
             }
         }
+    }
+
+    // MARK: - Session tools
+
+    public func sendChat(_ text: String) async {
+        guard let session else {
+            report("Chưa có phiên kết nối để gửi tin nhắn.")
+            return
+        }
+        guard !text.isEmpty else {
+            report("Nhập nội dung tin nhắn trước khi gửi.")
+            return
+        }
+        do {
+            try await session.sendChat(text)
+            report("Đã gửi tin nhắn.")
+        } catch {
+            report("Không gửi được tin nhắn: \(error.localizedDescription)")
+        }
+    }
+
+    public func sendClipboardText(_ text: String) async {
+        guard let session else {
+            report("Chưa có phiên kết nối để gửi bảng nhớ tạm.")
+            return
+        }
+        do {
+            try session.setClipboardSharing(true)
+            try await session.sendClipboard(text)
+            report("Đã gửi bảng nhớ tạm (\(text.utf8.count) byte).")
+        } catch {
+            report("Không gửi được bảng nhớ tạm: \(error.localizedDescription)")
+        }
+    }
+
+    public func sendKeyboardText(_ text: String) async {
+        guard let session else {
+            report("Chưa có phiên kết nối để gửi bàn phím.")
+            return
+        }
+        guard !text.isEmpty else {
+            report("Không có nội dung để gửi qua bàn phím.")
+            return
+        }
+        for unit in text.utf16 {
+            let keyDown = KeyboardMessage(kind: .keyDown, virtualKey: 0, scanCode: 0,
+                                          character: unit, capsLockOn: false)
+            let keyUp = KeyboardMessage(kind: .keyUp, virtualKey: 0, scanCode: 0,
+                                        character: unit, capsLockOn: false)
+            do {
+                try await session.send(keyDown.encode())
+                try await session.send(keyUp.encode())
+            } catch {
+                report("Không gửi được bàn phím: \(error.localizedDescription)")
+                return
+            }
+        }
+        report("Đã gửi bàn phím (chưa kiểm chứng trên Windows).")
+    }
+
+    public func sendFile(at url: URL) async {
+        guard let session else {
+            report("Chưa có phiên kết nối để gửi tệp.")
+            return
+        }
+        do {
+            let offer = try await session.sendFile(url)
+            report("Đã gửi tệp \(offer.fileName) (mã \(offer.transferID)).")
+        } catch {
+            report("Không gửi được tệp \(url.lastPathComponent): \(error.localizedDescription)")
+        }
+    }
+
+    public func acceptLastFileOffer(to directory: URL) async {
+        guard let session else {
+            report("Chưa có phiên kết nối để nhận tệp.")
+            return
+        }
+        guard let id = pendingFileOfferID, let name = pendingFileOfferName else {
+            report("Chưa có đề nghị gửi tệp nào để nhận.")
+            return
+        }
+        let destination = Self.safeDestination(for: name, in: directory)
+        do {
+            try await session.acceptFile(id, to: destination)
+            pendingFileOfferID = nil
+            pendingFileOfferName = nil
+            report("Đang nhận \(destination.lastPathComponent) (mã \(id)).")
+        } catch {
+            report("Không nhận được tệp \(name): \(error.localizedDescription)")
+        }
+    }
+
+    public func setComputerAudioEnabled(_ enabled: Bool) async {
+        guard let session else {
+            report("Chưa có phiên kết nối để đổi âm thanh máy tính.")
+            return
+        }
+        do {
+            try await session.setComputerAudioEnabled(enabled)
+            report(enabled
+                ? "Đã gửi yêu cầu bật âm thanh máy tính (bản iOS chưa phát âm thanh)."
+                : "Đã gửi yêu cầu tắt âm thanh máy tính.")
+        } catch {
+            report("Không đổi được âm thanh máy tính: \(error.localizedDescription)")
+        }
+    }
+
+    public func setCursorPositionsEnabled(_ enabled: Bool) async {
+        guard let session else {
+            report("Chưa có phiên kết nối để đổi vị trí con trỏ.")
+            return
+        }
+        do {
+            try await session.sendCommand(RemoteControlCommands.cursorPositions(enabled: enabled),
+                                          requiresControl: false)
+            report(enabled ? "Đã bật gửi vị trí con trỏ." : "Đã tắt gửi vị trí con trỏ.")
+        } catch {
+            report("Không đổi được vị trí con trỏ: \(error.localizedDescription)")
+        }
+    }
+
+    public func setQuality(_ preset: RemoteControlCommands.QualityPreset) async {
+        guard let session else {
+            report("Chưa có phiên kết nối để đổi chất lượng.")
+            return
+        }
+        do {
+            for message in RemoteControlCommands.qualityPreset(preset) {
+                try await session.sendCommand(message, requiresControl: false)
+            }
+            report("Đã gửi thiết lập chất lượng: \(Self.qualityLabel(preset)).")
+        } catch {
+            report("Không đổi được chất lượng: \(error.localizedDescription)")
+        }
+    }
+
+    public func setWallpaperVisible(_ visible: Bool) async {
+        guard let session else {
+            report("Chưa có phiên kết nối để đổi hình nền.")
+            return
+        }
+        do {
+            try await session.sendCommand(RemoteControlCommands.wallpaper(visible: visible),
+                                          requiresControl: false)
+            report(visible ? "Đã gửi yêu cầu hiện hình nền." : "Đã gửi yêu cầu ẩn hình nền.")
+        } catch {
+            report("Không đổi được hình nền: \(error.localizedDescription)")
+        }
+    }
+
+    public func sendAction(_ action: RemoteControlCommands.Action) async {
+        guard let session else {
+            report("Chưa có phiên kết nối để gửi lệnh.")
+            return
+        }
+        // Same one-shot permission warning as sendPointer.
+        guard inputAllowed else {
+            if !warnedAboutInputPermission {
+                warnedAboutInputPermission = true
+                report("Chưa có quyền điều khiển từ máy Windows. Hãy cho phép điều khiển trong UltraViewer bên Windows.")
+            }
+            return
+        }
+        do {
+            try await session.sendCommand(RemoteControlCommands.action(action), requiresControl: true)
+            report("Đã gửi lệnh \(String(describing: action)) (chưa kiểm chứng trên Windows).")
+        } catch {
+            report("Không gửi được lệnh \(String(describing: action)): \(error.localizedDescription)")
+        }
+    }
+
+    public func requestSideSwitch(ownID: String, password: String) async {
+        guard let session else {
+            report("Chưa có phiên kết nối để đổi chiều điều khiển.")
+            return
+        }
+        let message: RemoteControlCommands.Message
+        do {
+            message = try RemoteControlCommands.sideSwitch(ownID: ownID, password: password)
+        } catch {
+            report("Không gửi được yêu cầu đổi chiều: \(error.localizedDescription)")
+            return
+        }
+        // The UI must call this only after the user explicitly confirmed.
+        report("Đang gửi ID và mật khẩu phiên của mình sang máy Windows để đổi chiều điều khiển.")
+        do {
+            try await session.sendCommand(message, requiresControl: false)
+            report("Đã gửi thông tin đăng nhập của mình sang máy Windows (chỉ thực hiện sau khi bạn xác nhận).")
+        } catch {
+            report("Không gửi được yêu cầu đổi chiều: \(error.localizedDescription)")
+        }
+    }
+
+    private static func qualityLabel(_ preset: RemoteControlCommands.QualityPreset) -> String {
+        switch preset {
+        case .automatic: return "tự động"
+        case .speed: return "ưu tiên tốc độ"
+        case .quality: return "ưu tiên chất lượng"
+        @unknown default: return String(describing: preset)
+        }
+    }
+
+    private static func clipboardSummary(_ text: String) -> String {
+        let sanitized = String(text.unicodeScalars.map { scalar -> Character in
+            let category = scalar.properties.generalCategory
+            return category == .control || category == .format ? " " : Character(scalar)
+        })
+        let prefix = String(sanitized.prefix(120))
+        return sanitized.count > 120 ? prefix + "…" : prefix
+    }
+
+    private static func safeDestination(for name: String, in directory: URL) -> URL {
+        let components = name.components(separatedBy: CharacterSet(charactersIn: "/\\"))
+        let base = components.last(where: { !$0.isEmpty && $0 != "." && $0 != ".." }) ?? "received-file"
+        let fileManager = FileManager.default
+        let nsBase = base as NSString
+        let stem = nsBase.deletingPathExtension
+        let ext = nsBase.pathExtension
+        var candidate = directory.appendingPathComponent(base)
+        var index = 1
+        while fileManager.fileExists(atPath: candidate.path) {
+            let suffix = ext.isEmpty ? " (\(index))" : " (\(index)).\(ext)"
+            candidate = directory.appendingPathComponent(stem + suffix)
+            index += 1
+        }
+        return candidate
     }
 
     private func handle(_ event: UltraViewerRelaySession.Event) {
@@ -181,11 +429,13 @@ public final class ViewerSessionController {
             if allowed { warnedAboutInputPermission = false }
             report(allowed ? "Điều khiển từ xa đã được cho phép." : "Chỉ xem; điều khiển từ xa tạm dừng.")
         case let .chat(text):
+            lastChatText = text
             report("Tin nhắn: \(text)")
         case let .typing(typing):
             if typing { report("Bên kia đang gõ…") }
         case let .clipboard(text):
-            report("Bảng nhớ tạm (\(text.utf8.count) byte) — chưa có giao diện sao chép.")
+            lastClipboardText = text
+            report("Bảng nhớ tạm (\(text.utf8.count) byte): \(Self.clipboardSummary(text))")
         case .computerAudio:
             report("Nhận âm thanh máy tính — bản iOS chưa phát âm thanh.")
         case let .cursor(cursor):
@@ -199,7 +449,9 @@ public final class ViewerSessionController {
         case .sideSwitchRequested:
             report("Máy Windows yêu cầu đổi chiều điều khiển — chưa hỗ trợ.")
         case let .fileOffer(offer):
-            report("Nhận đề nghị gửi tệp \(offer.fileName) — chưa hỗ trợ truyền tệp.")
+            pendingFileOfferID = offer.transferID
+            pendingFileOfferName = offer.fileName
+            report("Nhận đề nghị gửi tệp \(offer.fileName) (\(offer.size) byte) — chọn «Nhận tệp» để lưu.")
         case let .fileProgress(transferID, bytes):
             report("Truyền \(transferID): \(bytes) byte.")
         case let .fileCompleted(transferID):
@@ -217,6 +469,10 @@ public final class ViewerSessionController {
         inputAllowed = false
         warnedAboutInputPermission = false
         reportedFirstPointer = false
+        lastChatText = ""
+        lastClipboardText = ""
+        pendingFileOfferID = nil
+        pendingFileOfferName = nil
         peer = nil
         state = .idle
         onState?(state)
