@@ -199,7 +199,7 @@ public actor FramedTCPTransport {
         // iOS has no SecTrustSetOptions. A chain that is otherwise trusted but
         // rejected for expiration can be retried with trust exceptions, which
         // only apply to this evaluated certificate chain.
-        if let firstReason, firstReason.localizedCaseInsensitiveContains("expired"),
+        if let error, CFErrorGetCode(error) == errSecCertificateExpired,
            let exceptions = SecTrustCopyExceptions(trust) {
             SecTrustSetExceptions(trust, exceptions)
             error = nil

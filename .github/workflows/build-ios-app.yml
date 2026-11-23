@@ -35,7 +35,13 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p Payload/iOSViewer.app
-          app_binary="$(find iOSViewer/.build -type f -name iOSViewerApp | sed -n '1p')"
+          app_binary=""
+          while IFS= read -r candidate; do
+            if [ -x "$candidate" ] && file -b "$candidate" | grep -q 'Mach-O.*executable'; then
+              app_binary="$candidate"
+              break
+            fi
+          done < <(find iOSViewer/.build -type f -name iOSViewerApp)
           if [ -z "$app_binary" ]; then
             echo "Built iOSViewerApp executable was not found" >&2
             exit 1
