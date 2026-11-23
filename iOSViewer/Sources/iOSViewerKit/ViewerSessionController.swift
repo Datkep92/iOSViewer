@@ -205,7 +205,7 @@ public final class ViewerSessionController {
             return
         }
         do {
-            try session.setClipboardSharing(true)
+            try await session.setClipboardSharing(true)
             try await session.sendClipboard(text)
             report("Đã gửi bảng nhớ tạm (\(text.utf8.count) byte).")
         } catch {
