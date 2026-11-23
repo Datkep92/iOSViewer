@@ -279,6 +279,15 @@ public actor UltraViewerRelaySession {
         try await login(controlMode: -1, clearControlMode: true, token: token)
     }
 
+    /// Asks an active host to grant interactive control again. The host's own
+    /// decision arrives later as command 49, so remoteViewOnly stays unchanged
+    /// until Windows answers.
+    public func requestRemoteControl() async throws {
+        guard phase == .active else { throw Failure.notConnected }
+        let token = generation
+        try await login(controlMode: 0, clearControlMode: false, token: token)
+    }
+
     /// Tells an active host that this viewer is leaving, then closes.
     public func close() async {
         if phase == .active {

@@ -19,6 +19,7 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
     private let dictionaryButton = UIButton(type: .system)
     private let toolConnectButton = UIButton(type: .system)
     private let toolDisconnectButton = UIButton(type: .system)
+    private let requestControlButton = UIButton(type: .system)
     private let fullscreenButton = UIButton(type: .system)
     private let zoomInButton = UIButton(type: .system)
     private let zoomOutButton = UIButton(type: .system)
@@ -126,6 +127,8 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
         configureButton(toolDisconnectButton, title: "Ngắt", identifier: "remote-tool-disconnect",
                         action: #selector(disconnectTapped))
         toolDisconnectButton.isEnabled = false
+        configureButton(requestControlButton, title: "Xin quyền", identifier: "remote-tool-request-control",
+                        action: #selector(requestControlTapped))
         configureButton(fullscreenButton, title: "Toàn màn hình", identifier: "remote-tool-fullscreen",
                         action: #selector(fullscreenTapped))
         configureButton(zoomInButton, title: "zoom +", identifier: "remote-tool-zoom-in",
@@ -155,8 +158,8 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
         actionRow.addArrangedSubview(disconnectButton)
         actionRow.addArrangedSubview(dictionaryButton)
 
-        let toolButtons = [toolConnectButton, toolDisconnectButton, fullscreenButton,
-                           zoomInButton, zoomOutButton, fitButton, toolsButton, logButton]
+        let toolButtons = [toolConnectButton, toolDisconnectButton, requestControlButton,
+                           fullscreenButton, zoomInButton, zoomOutButton, fitButton, toolsButton, logButton]
         let toolStack = UIStackView(arrangedSubviews: toolButtons)
         toolStack.axis = .horizontal
         toolStack.spacing = 12
@@ -320,6 +323,10 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
         Task { await controller.disconnect() }
     }
 
+    @objc private func requestControlTapped() {
+        Task { await controller.requestControlPermission() }
+    }
+
     @objc private func fullscreenTapped() {
         isFullscreen.toggle()
         applyLayoutMode()
@@ -352,6 +359,9 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
     @objc private func toolsTapped() {
         let sheet = UIAlertController(title: "Công cụ điều khiển", message: nil, preferredStyle: .actionSheet)
 
+        sheet.addAction(UIAlertAction(title: "Xin lại quyền điều khiển", style: .default) { [weak self] _ in
+            Task { await self?.controller.requestControlPermission() }
+        })
         sheet.addAction(UIAlertAction(title: "Chat", style: .default) { [weak self] _ in
             guard let self else { return }
             self.promptText(title: "Chat", placeholder: "Nội dung chat") { text in

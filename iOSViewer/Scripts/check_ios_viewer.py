@@ -92,7 +92,7 @@ for header in ("Sources/CZstd/include/CZstd.h", "Sources/CG722/include/MacViewer
 uikit = read(IOS / "Sources/iOSViewerKit/iOSViewerRootViewController.swift")
 # remote-tool- là tiền tố chung cho identifier và action của các nút công cụ.
 for needle in ("UIViewController", "UITextField", "UIDocumentPickerViewController", "UITextView",
-               "NSLayoutConstraint", "remote-tool-"):
+               "NSLayoutConstraint", "remote-tool-", "remote-tool-request-control"):
     check(needle in uikit, f"Giao diện UIKit thiếu {needle}")
 check("fullscreen" in uikit.lower(), "Giao diện UIKit thiếu chế độ toàn màn hình (fullscreen)")
 view = read(IOS / "Sources/iOSViewerKit/RemoteScreenImageView.swift")
@@ -105,7 +105,7 @@ for needle in ("UltraViewerRelaySession", "frame", "MouseMessage", "sendPointer"
                "horizontalWheel", "wheelWParam", "allowsRemoteInput", "applyInputPermission",
                "sendChat", "sendClipboardText", "sendKeyboardText", "sendFile", "acceptLastFileOffer",
                "setComputerAudioEnabled", "setCursorPositionsEnabled", "setQuality", "setWallpaperVisible",
-               "sendAction", "requestSideSwitch"):
+               "sendAction", "requestSideSwitch", "requestControlPermission"):
     check(needle in controller, f"Bộ điều khiển phiên thiếu {needle}")
 
 readme = read(ROOT / "README.md")

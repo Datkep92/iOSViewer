@@ -350,6 +350,22 @@ public final class ViewerSessionController {
         }
     }
 
+    /// Re-asks the Windows host for interactive control without dropping the
+    /// session. Windows sends its answer as a later permission event.
+    public func requestControlPermission() async {
+        guard let session else {
+            report("Chưa có phiên kết nối để xin quyền điều khiển.")
+            return
+        }
+        report("Đang gửi lại yêu cầu quyền điều khiển tới máy Windows…")
+        do {
+            try await session.requestRemoteControl()
+            report("Đã gửi yêu cầu. Nếu Windows hỏi, hãy chọn cho phép điều khiển.")
+        } catch {
+            report("Không gửi được yêu cầu quyền điều khiển: \(error.localizedDescription)")
+        }
+    }
+
     public func requestSideSwitch(ownID: String, password: String) async {
         guard let session else {
             report("Chưa có phiên kết nối để đổi chiều điều khiển.")
