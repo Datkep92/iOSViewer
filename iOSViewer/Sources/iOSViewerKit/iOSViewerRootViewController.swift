@@ -24,7 +24,12 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
         timeFormatter.dateStyle = .none
         buildLayout()
         bindController()
-        appendLog("Chọn tệp 8bit.dat từ bản UltraViewer hợp pháp, rồi nhập ID máy Windows.")
+        do {
+            _ = try UltraViewerScreenDictionary.load()
+            appendLog("Đã sẵn sàng từ điển 8bit.dat.")
+        } catch {
+            appendLog("Chọn tệp 8bit.dat từ bản UltraViewer hợp pháp, rồi nhập ID máy Windows.")
+        }
     }
 
     private func buildLayout() {

@@ -1,1 +1,13 @@
-{"autoName":false,"buildSystem":"external","displayName":"UltraViewer iOS","kind":"workspace","projectID":"04047017-cc77-45ee-ba75-05bd0d37725e","schemaVersion":1}
+{
+  "autoName": false,
+  "buildSystem": "external",
+  "displayName": "UltraViewer iOS",
+  "external": {
+    "arguments": [],
+    "interpreter": "sh",
+    "script": "apelin/install-device-build.sh"
+  },
+  "kind": "workspace",
+  "projectID": "04047017-cc77-45ee-ba75-05bd0d37725e",
+  "schemaVersion": 1
+}
