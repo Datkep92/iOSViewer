@@ -87,7 +87,7 @@ jobs:
           cat > "$stage/DEBIAN/control" <<'EOF'
           Package: local.apelin.iosviewer
           Name: iOSViewer
-          Version: 1.1
+          Version: 1.2
           Architecture: iphoneos-arm64
           Maintainer: Datkep92 <datkep92@users.noreply.github.com>
           Description: iOS 16 viewer ported from MacViewer, unsigned build
