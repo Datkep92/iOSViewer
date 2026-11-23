@@ -81,10 +81,10 @@ uikit = read(IOS / "Sources/iOSViewerKit/iOSViewerRootViewController.swift")
 for needle in ("UIViewController", "UITextField", "UIDocumentPickerViewController", "UITextView", "NSLayoutConstraint"):
     check(needle in uikit, f"Giao diện UIKit thiếu {needle}")
 view = read(IOS / "Sources/iOSViewerKit/RemoteScreenImageView.swift")
-for needle in ("UIImageView", "UITapGestureRecognizer", "UILongPressGestureRecognizer", "remotePoint"):
+for needle in ("UIImageView", "UITapGestureRecognizer", "UILongPressGestureRecognizer", "UIPanGestureRecognizer", "wheel(delta:", "remotePoint"):
     check(needle in view, f"Chế độ xem màn hình thiếu {needle}")
 controller = read(IOS / "Sources/iOSViewerKit/ViewerSessionController.swift")
-for needle in ("UltraViewerRelaySession", "frame", "MouseMessage", "sendPointer"):
+for needle in ("UltraViewerRelaySession", "frame", "MouseMessage", "sendPointer", "verticalWheel", "wheelWParam"):
     check(needle in controller, f"Bộ điều khiển phiên thiếu {needle}")
 
 readme = read(ROOT / "README.md")

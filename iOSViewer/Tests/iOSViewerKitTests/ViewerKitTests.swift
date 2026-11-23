@@ -13,6 +13,16 @@ final class ViewerKitTests: XCTestCase {
         XCTAssertEqual(packed, Int32(bitPattern: 0x0002FFFF))
     }
 
+    func testVerticalWheelKeepsSignedDeltaInHighWord() {
+        XCTAssertEqual(MouseMessage.wheelWParam(delta: 120, keyFlags: 0), 120 << 16)
+        XCTAssertEqual(MouseMessage.wheelWParam(delta: -120, keyFlags: 0), Int32(bitPattern: 0xFF880000))
+        let message = MouseMessage.verticalWheel(
+            wParam: MouseMessage.wheelWParam(delta: 120, keyFlags: 0),
+            lParam: MouseMessage.packedPosition(x: 10, y: 20))
+        XCTAssertEqual(message.windowsMessage, 0x20a)
+        XCTAssertEqual(message.text().split(separator: "|||").count, 5)
+    }
+
     func testOperatingSystemWireValue() {
         let version = OperatingSystemVersion(majorVersion: 16, minorVersion: 6, patchVersion: 0)
         XCTAssertEqual(IOSRegistrationProfile.operatingSystemWireValue(version), "0|16|0|6|0|0")

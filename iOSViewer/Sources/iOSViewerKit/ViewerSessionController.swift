@@ -21,6 +21,8 @@ public final class ViewerSessionController {
     private var eventsTask: Task<Void, Never>?
     private var peer: UltraViewerRelaySession.Peer?
     private var inputAllowed = false
+    private var warnedAboutInputPermission = false
+    private var reportedFirstPointer = false
     private static let maximumLogLines = 200
 
     public init() {}
@@ -72,6 +74,8 @@ public final class ViewerSessionController {
         self.session = session
         self.peer = nil
         self.inputAllowed = false
+        self.warnedAboutInputPermission = false
+        self.reportedFirstPointer = false
         self.state = .connecting
         self.onState?(state)
         report("Đang tìm \(id) qua dịch vụ UltraViewer…")
@@ -96,6 +100,8 @@ public final class ViewerSessionController {
         session = nil
         await current?.close()
         inputAllowed = false
+        warnedAboutInputPermission = false
+        reportedFirstPointer = false
         peer = nil
         state = .idle
         onState?(state)
@@ -105,7 +111,14 @@ public final class ViewerSessionController {
     /// Coordinates are already in Windows desktop pixels; the view maps the
     /// touch point into that space before calling here.
     public func sendPointer(_ kind: RemotePointerKind, at point: CGPoint) {
-        guard inputAllowed, let session else { return }
+        guard let session else { return }
+        guard inputAllowed else {
+            if !warnedAboutInputPermission {
+                warnedAboutInputPermission = true
+                report("Chưa có quyền điều khiển từ máy Windows. Hãy cho phép điều khiển trong UltraViewer bên Windows.")
+            }
+            return
+        }
         let x = Int32(point.x.rounded())
         let y = Int32(point.y.rounded())
         let position = MouseMessage.packedPosition(x: Int16(clamping: x), y: Int16(clamping: y))
@@ -124,6 +137,13 @@ public final class ViewerSessionController {
             messages = [.move(wParam: 0, x: x, y: y),
                         .button(.rightDown, wParam: 2, lParam: position),
                         .button(.rightUp, wParam: 0, lParam: position)]
+        case let .wheel(delta):
+            messages = [.verticalWheel(wParam: MouseMessage.wheelWParam(delta: delta, keyFlags: 0),
+                                       lParam: position)]
+        }
+        if !reportedFirstPointer {
+            reportedFirstPointer = true
+            report("Đã bắt đầu gửi lệnh điều khiển tới máy Windows.")
         }
         Task { [weak self] in
             for message in messages {
@@ -158,6 +178,7 @@ public final class ViewerSessionController {
             onFrame?(image, size)
         case let .inputPermission(allowed):
             inputAllowed = allowed
+            if allowed { warnedAboutInputPermission = false }
             report(allowed ? "Điều khiển từ xa đã được cho phép." : "Chỉ xem; điều khiển từ xa tạm dừng.")
         case let .chat(text):
             report("Tin nhắn: \(text)")
@@ -194,6 +215,8 @@ public final class ViewerSessionController {
         eventsTask = nil
         session = nil
         inputAllowed = false
+        warnedAboutInputPermission = false
+        reportedFirstPointer = false
         peer = nil
         state = .idle
         onState?(state)

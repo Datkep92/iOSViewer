@@ -47,7 +47,8 @@ Bản riêng đã nhúng `8bit.dat` nên không cần chọn tệp trong app; b�
 ## Giới hạn trên iPhone hiện tại
 
 - Thiết bị **không có toolchain**; CPU thiếu `FEAT_LRCPC`. Không build, không chạy test Swift, không respring hay cài toolchain ở đây.
-- Đã cài bản riêng mới lên máy và kiểm tra tệp thực thi, từ điển đúng băm. Người dùng xác nhận app báo `Đã sẵn sàng từ điển 8bit.dat.`; lỗi tiếp theo là không ghi được hồ sơ đăng ký, đã sửa ở `IOSRegistrationProfile.swift` nhưng **chưa thử lại sau khi cài bản sửa**. Kết nối thật, khung hình và thao tác chạm vẫn chưa được kiểm chứng.
+- Đã cài bản riêng mới lên máy và kiểm tra tệp thực thi, từ điển đúng băm. Người dùng xác nhận app báo `Đã sẵn sàng từ điển 8bit.dat.` và **đã kết nối được tới máy Windows**. Khung hình và thao tác chạm đang được kiểm chứng tiếp.
+- Điều khiển trên màn hình: chạm ngắn = click trái, chạm đôi = click đôi, giữ lâu = click phải, kéo một ngón = diệt chuột, vuốt hai ngón = cuộn dọc. Nếu máy Windows để chế độ chỉ xem, app báo rõ và không gửi lệnh. Chưa hỗ trợ kéo thả giữ nút chuột liên tục.
 - Cần **người dùng cung cấp `8bit.dat` hợp pháp** (112.640 byte, SHA-256 `9aa45789d9ff9d329a623a685d57b67e33c777019de9ce1f273f21860e4bfe6b`) cho bản sạch/máy khác. Kho này không chứa, không sao chép và không commit tệp đó hay blob bản quyền nào.
 - Chưa có UIKit cho âm thanh máy tính, bảng nhớ tạm, chat, truyền tệp, đổi chiều điều khiển và lớp vẽ con trỏ; chưa xử lý CAPTCHA/xác thực bổ sung.
 - Không dùng AppKit, storyboard hay Theos. Kết nối trực tiếp LAN bị tắt để khỏi xin quyền Local Network.
