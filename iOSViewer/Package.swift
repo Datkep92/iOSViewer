@@ -6,6 +6,7 @@ let package = Package(
     platforms: [.iOS(.v16)],
     products: [
         .library(name: "iOSViewerKit", targets: ["iOSViewerKit"]),
+        .executable(name: "iOSViewerApp", targets: ["iOSViewerApp"]),
         .executable(name: "iOSViewerScaffold", targets: ["iOSViewerScaffold"])
     ],
     targets: [
@@ -47,6 +48,7 @@ let package = Package(
             path: "Sources/UltraViewerProtocol"
         ),
         .target(name: "iOSViewerKit", dependencies: ["UltraViewerProtocol"]),
+        .executableTarget(name: "iOSViewerApp", dependencies: ["iOSViewerKit"]),
         .executableTarget(name: "iOSViewerScaffold", dependencies: ["iOSViewerKit"]),
         .testTarget(name: "iOSViewerKitTests", dependencies: ["iOSViewerKit"])
     ]
