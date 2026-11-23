@@ -36,7 +36,7 @@ Bộ kiểm tra cũng chặn: `.macOS(` / `AppKit`, tệp `8bit.dat` nằm trong
 
 Trên iPhone này **không có toolchain Swift**, nên không chạy được `swift test` hay build tại đây. Dùng một trong hai cách sau:
 
-**GitHub Actions (đã thiết lập):** đẩy lên `main` hoặc chạy tay workflow `.github/workflows/build-ios-app.yml`. Máy macOS có Xcode sẽ chạy kiểm tra tĩnh, build sản phẩm `iOSViewerApp` cho iOS 16, đóng gói `Payload/iOSViewer.app`, ký tạm bằng `codesign --force --sign -` và upload artifact `iOSViewer-unsigned` (tệp `.ipa`). Artifact **chưa ký chính thức**, chưa cài được lên iPhone thường; muốn phân phối thật phải thêm chứng chỉ và provisioning profile vào workflow.
+**GitHub Actions (đã thiết lập):** đẩy lên `main` hoặc chạy tay workflow `.github/workflows/build-ios-app.yml`. Máy macOS có Xcode sẽ chạy kiểm tra tĩnh, build sản phẩm `iOSViewerApp` cho iOS 16, đóng gói `Payload/iOSViewer.app`, ký tạm bằng `codesign --force --sign -` rồi xuất artifact `iOSViewer-packages` gồm hai tệp: `iOSViewer.ipa` (dùng với TrollStore nếu máy đã cài TrollStore) và `iOSViewer.deb` (gói rootless `iphoneos-arm64`, cài bằng Sileo, đặt app tại `/var/jb/Applications/iOSViewer.app`). Cả hai **chưa ký chính thức**; `.deb` chỉ cài được trên iPhone đã jailbreak rootless. Phân phối chính thức cần thêm chứng chỉ và provisioning profile vào workflow.
 
 **Máy có Xcode 15+:** dùng trực tiếp sản phẩm `iOSViewerApp` trong `iOSViewer/Package.swift`, hoặc thêm package local `iOSViewer/Package.swift` vào một iOS App target và dùng `iOSViewerRootViewController()` làm root. Scene delegate `iOSViewerSceneDelegate` đã được khai báo trong `iOSViewerApp-Info.plist` và trong mã app.
 

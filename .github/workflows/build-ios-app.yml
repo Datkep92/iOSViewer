@@ -28,18 +28,51 @@ jobs:
             --product iOSViewerApp \
             -Xswiftc -sdk -Xswiftc "$sdkroot"
 
-      - name: Assemble unsigned app archive
+      - name: Assemble unsigned app bundle
         run: |
           set -euo pipefail
           mkdir -p Payload/iOSViewer.app
           cp .build/arm64-apple-ios16.0/release/iOSViewerApp Payload/iOSViewer.app/iOSViewer
           cp iOSViewerApp-Info.plist Payload/iOSViewer.app/Info.plist
           codesign --force --sign - Payload/iOSViewer.app
-          zip -qry iOSViewer.ipa Payload
 
-      - name: Upload app archive
+      - name: Build rootless DEB for jailbroken iOS
+        run: |
+          set -euo pipefail
+          if ! command -v dpkg-deb >/dev/null 2>&1; then
+            brew install dpkg
+          fi
+          stage="$(mktemp -d)"
+          mkdir -p "$stage/DEBIAN" "$stage/var/jb/Applications/iOSViewer.app"
+          cp Payload/iOSViewer.app/Info.plist "$stage/var/jb/Applications/iOSViewer.app/Info.plist"
+          cp Payload/iOSViewer.app/iOSViewer "$stage/var/jb/Applications/iOSViewer.app/iOSViewer"
+          cat > "$stage/DEBIAN/control" <<'EOF'
+          Package: local.apelin.iosviewer
+          Name: iOSViewer
+          Version: 1.0
+          Architecture: iphoneos-arm64
+          Maintainer: Datkep92 <datkep92@users.noreply.github.com>
+          Description: iOS 16 viewer ported from MacViewer, unsigned build
+          Section: Applications
+          Priority: optional
+          Depends: firmware (>= 16.0), uikittools
+          EOF
+          cat > "$stage/DEBIAN/postinst" <<'EOF'
+          #!/bin/sh
+          uicache -p /var/jb/Applications/iOSViewer.app || true
+          exit 0
+          EOF
+          chmod 755 "$stage/DEBIAN/postinst"
+          dpkg-deb -b --root-owner-group "$stage" iOSViewer.deb
+
+      - name: Package IPA for TrollStore
+        run: zip -qry iOSViewer.ipa Payload
+
+      - name: Upload packages
         uses: actions/upload-artifact@v4
         with:
-          name: iOSViewer-unsigned
-          path: iOSViewer.ipa
+          name: iOSViewer-packages
+          path: |
+            iOSViewer.ipa
+            iOSViewer.deb
           if-no-files-found: error
