@@ -1,5 +1,6 @@
 import Foundation
 import UIKit
+import UltraViewerProtocol
 
 /// Builds the client registration request from real iOS device facts. It does
 /// not invent Windows identity values: fields with no truthful iOS equivalent
@@ -44,8 +45,7 @@ public enum IOSRegistrationProfile {
         let directory = support.appendingPathComponent("iOSViewer", isDirectory: true)
             .appendingPathComponent("Client", isDirectory: true)
         let environment = Environment(hostName: UIDevice.current.name,
-                                      userName: ProcessInfo.processInfo.userName.isEmpty
-                                          ? "mobile" : ProcessInfo.processInfo.userName,
+                                      userName: ProcessInfo.processInfo.environment["USER"] ?? "mobile",
                                       operatingSystem: ProcessInfo.processInfo.operatingSystemVersion)
         return try loadOrCreate(in: directory, environment: environment)
     }

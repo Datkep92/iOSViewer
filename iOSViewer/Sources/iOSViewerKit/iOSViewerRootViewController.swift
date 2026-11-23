@@ -1,5 +1,6 @@
 import UIKit
 import UniformTypeIdentifiers
+import UltraViewerProtocol
 
 /// Minimal UIKit screen: enter the Windows ID/password, connect, see the newest
 /// frame, tap to send mouse commands, and read status/log lines.
@@ -10,7 +11,7 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
     private let connectButton = UIButton(type: .system)
     private let disconnectButton = UIButton(type: .system)
     private let dictionaryButton = UIButton(type: .system)
-    private let screenView = RemoteScreenImageView()
+    private let screenView = RemoteScreenImageView(frame: .zero)
     private let logView = UITextView()
     private var logLines: [String] = []
     private let timeFormatter = DateFormatter()
@@ -131,7 +132,7 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
         view.endEditing(true)
         let id = idField.text ?? ""
         let password = passwordField.text ?? ""
-        controller.connect(partnerID: id, password: password)
+        Task { await controller.connect(partnerID: id, password: password) }
     }
 
     @objc private func disconnectTapped() {

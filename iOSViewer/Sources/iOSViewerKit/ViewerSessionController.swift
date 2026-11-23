@@ -25,7 +25,7 @@ public final class ViewerSessionController {
 
     public init() {}
 
-    public func connect(partnerID: String, password: String) {
+    public func connect(partnerID: String, password: String) async {
         guard state == .idle else { return }
         let id = partnerID.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !id.isEmpty, id.utf8.allSatisfy({ (48...57).contains($0) }), !password.isEmpty else {
@@ -63,7 +63,7 @@ public final class ViewerSessionController {
         let session = UltraViewerRelaySession()
         let stream: AsyncThrowingStream<UltraViewerRelaySession.Event, any Swift.Error>
         do {
-            stream = try session.connect(configuration: configuration, partnerID: id, password: password)
+            stream = try await session.connect(configuration: configuration, partnerID: id, password: password)
         } catch {
             report("Không bắt đầu được phiên: \(error.localizedDescription)")
             return
@@ -164,7 +164,7 @@ public final class ViewerSessionController {
         case let .typing(typing):
             if typing { report("Bên kia đang gõ…") }
         case let .clipboard(text):
-            report("Bảng nhớ tạm (\(text.utf8.count} byte) — chưa có giao diện sao chép.")
+            report("Bảng nhớ tạm (\(text.utf8.count) byte) — chưa có giao diện sao chép.")
         case .computerAudio:
             report("Nhận âm thanh máy tính — bản iOS chưa phát âm thanh.")
         case let .cursor(cursor):
