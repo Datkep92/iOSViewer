@@ -244,9 +244,9 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
     }
 
     /// Khung hình luôn ôm đúng ảnh để mọi cử chỉ đều rơi vào ảnh, kể cả máy Windows 4:3.
-    private func updateScreenAspect(width: Int, height: Int) {
+    private func updateScreenAspect(width: CGFloat, height: CGFloat) {
         guard let old = aspectConstraint, width > 0, height > 0 else { return }
-        let ratio = min(max(CGFloat(height) / CGFloat(width), 0.35), 2.0)
+        let ratio = min(max(height / width, 0.35), 2.0)
         guard abs(old.multiplier - ratio) > 0.002 else { return }
         let wasActive = old.isActive
         NSLayoutConstraint.deactivate([old])
