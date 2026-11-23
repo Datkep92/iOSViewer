@@ -38,23 +38,56 @@ public enum IOSRegistrationProfile {
     /// Persisted credentials are generated on this device. No credential is
     /// present in the source tree or in the documentation.
     public static func loadOrCreate() throws -> ClientRegistration.Request {
-        guard let support = FileManager.default.urls(for: .applicationSupportDirectory,
-                                                     in: .userDomainMask).first else {
-            throw Error.storageUnavailable
-        }
-        let directory = support.appendingPathComponent("iOSViewer", isDirectory: true)
-            .appendingPathComponent("Client", isDirectory: true)
         let environment = Environment(hostName: UIDevice.current.name,
                                       userName: ProcessInfo.processInfo.environment["USER"] ?? "mobile",
                                       operatingSystem: ProcessInfo.processInfo.operatingSystemVersion)
-        return try loadOrCreate(in: directory, environment: environment)
+        var roots: [URL] = []
+        if let support = FileManager.default.urls(for: .applicationSupportDirectory,
+                                                 in: .userDomainMask).first {
+            roots.append(support)
+        }
+        if let documents = FileManager.default.urls(for: .documentDirectory,
+                                                    in: .userDomainMask).first {
+            roots.append(documents)
+        }
+        var lastFailure = "không có thư mục lưu nào"
+        for root in roots {
+            let directory = root.appendingPathComponent("iOSViewer", isDirectory: true)
+                .appendingPathComponent("Client", isDirectory: true)
+            do {
+                let request = try loadOrCreate(in: directory, environment: environment)
+                NSLog("iOSViewer: đã lưu cấu hình đăng ký tại %@", directory.path)
+                return request
+            } catch {
+                lastFailure = error.localizedDescription
+                NSLog("iOSViewer: không lưu được cấu hình tại %@: %@", directory.path, lastFailure)
+            }
+        }
+        // A storage problem must never stop a connection: use a stable
+        // in-memory profile for this process instead.
+        NSLog("iOSViewer: dùng cấu hình đăng ký tạm thời (%@)", lastFailure)
+        return try memoryOnlyRequest(environment: environment)
+    }
+
+    private static var memoryRegistration: ClientRegistration.Request?
+
+    private static func memoryOnlyRequest(environment: Environment) throws -> ClientRegistration.Request {
+        if let existing = memoryRegistration { return existing }
+        let request = makeRequest(
+            credentials: Credentials(deviceIdentity: randomIdentity(), password: randomPassword()),
+            environment: environment
+        )
+        memoryRegistration = request
+        return request
     }
 
     private static func loadOrCreate(in directory: URL,
                              environment: Environment) throws -> ClientRegistration.Request {
         let manager = FileManager.default
-        try manager.createDirectory(at: directory, withIntermediateDirectories: true,
-                                    attributes: [.posixPermissions: 0o700])
+        let parent = directory.deletingLastPathComponent()
+        try manager.createDirectory(at: parent, withIntermediateDirectories: true, attributes: nil)
+        try manager.createDirectory(at: directory, withIntermediateDirectories: true, attributes: nil)
+        try? manager.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directory.path)
         guard try manager.attributesOfItem(atPath: directory.path)[.type] as? FileAttributeType == .typeDirectory else {
             throw Error.storageUnavailable
         }
@@ -80,8 +113,14 @@ public enum IOSRegistrationProfile {
         do {
             _ = try request.encode()
             let bytes = try JSONEncoder().encode(request) + Data([10])
-            try bytes.write(to: destination, options: .atomic)
-            try manager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: destination.path)
+            do {
+                try bytes.write(to: destination, options: .atomic)
+                try? manager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: destination.path)
+            } catch {
+                // A valid in-memory profile is enough for this connection.
+                NSLog("iOSViewer: không ghi được tệp cấu hình tại %@: %@", destination.path,
+                      error.localizedDescription)
+            }
         } catch {
             throw Error.encodingFailed(error.localizedDescription)
         }
