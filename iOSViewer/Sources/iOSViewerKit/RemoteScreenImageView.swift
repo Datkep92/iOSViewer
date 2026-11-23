@@ -1,12 +1,6 @@
 import CoreGraphics
+import RemoteControlKit
 import UIKit
-
-public enum RemotePointerKind: Sendable {
-    case move, leftClick, doubleClick, rightClick
-    /// One Windows wheel notch is a signed multiple of 120 in the high word.
-    case wheel(delta: Int16)
-    case horizontalWheel(delta: Int16)
-}
 
 /// Displays the newest decoded Windows screen and maps touches into remote
 /// desktop pixels. A long press is the iOS stand-in for a right click; a

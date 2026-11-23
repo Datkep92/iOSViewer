@@ -61,6 +61,7 @@ jobs:
           fi
           cp "$app_binary" Payload/iOSViewer.app/iOSViewer
           cp iOSViewerApp-Info.plist Payload/iOSViewer.app/Info.plist
+          python3 iOSViewer/Scripts/make_app_icon.py Payload/iOSViewer.app
           if [ "$INCLUDE_DICTIONARY" = "true" ]; then
             printf '%s%s%s%s%s' "$DICT_PART1" "$DICT_PART2" "$DICT_PART3" "$DICT_PART4" "$DICT_PART5" \
               | base64 -D > Payload/iOSViewer.app/8bit.dat
@@ -79,13 +80,14 @@ jobs:
           mkdir -p "$stage/DEBIAN" "$stage/var/jb/Applications/iOSViewer.app"
           cp Payload/iOSViewer.app/Info.plist "$stage/var/jb/Applications/iOSViewer.app/Info.plist"
           cp Payload/iOSViewer.app/iOSViewer "$stage/var/jb/Applications/iOSViewer.app/iOSViewer"
+          cp Payload/iOSViewer.app/AppIcon*.png "$stage/var/jb/Applications/iOSViewer.app/"
           if [ -f Payload/iOSViewer.app/8bit.dat ]; then
             cp Payload/iOSViewer.app/8bit.dat "$stage/var/jb/Applications/iOSViewer.app/8bit.dat"
           fi
           cat > "$stage/DEBIAN/control" <<'EOF'
           Package: local.apelin.iosviewer
           Name: iOSViewer
-          Version: 1.0
+          Version: 1.1
           Architecture: iphoneos-arm64
           Maintainer: Datkep92 <datkep92@users.noreply.github.com>
           Description: iOS 16 viewer ported from MacViewer, unsigned build

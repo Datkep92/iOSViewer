@@ -6,6 +6,8 @@ let package = Package(
     platforms: [.iOS(.v16)],
     products: [
         .library(name: "iOSViewerKit", targets: ["iOSViewerKit"]),
+        .library(name: "RemoteControlKit", targets: ["RemoteControlKit"]),
+        .library(name: "UltraViewerProtocol", targets: ["UltraViewerProtocol"]),
         .executable(name: "iOSViewerApp", targets: ["iOSViewerApp"]),
         .executable(name: "iOSViewerScaffold", targets: ["iOSViewerScaffold"])
     ],
@@ -47,7 +49,8 @@ let package = Package(
             dependencies: ["CZstd", "CG722"],
             path: "Sources/UltraViewerProtocol"
         ),
-        .target(name: "iOSViewerKit", dependencies: ["UltraViewerProtocol"]),
+        .target(name: "RemoteControlKit", dependencies: ["UltraViewerProtocol"]),
+        .target(name: "iOSViewerKit", dependencies: ["UltraViewerProtocol", "RemoteControlKit"]),
         .executableTarget(name: "iOSViewerApp", dependencies: ["iOSViewerKit"]),
         .executableTarget(name: "iOSViewerScaffold", dependencies: ["iOSViewerKit"]),
         .testTarget(name: "iOSViewerKitTests", dependencies: ["iOSViewerKit"])

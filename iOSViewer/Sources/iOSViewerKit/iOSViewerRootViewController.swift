@@ -1,10 +1,12 @@
 import UIKit
 import UniformTypeIdentifiers
+import RemoteControlKit
 import UltraViewerProtocol
 
 /// UIKit screen: enter the Windows ID/password, connect, see the newest
 /// frame, rotate or go fullscreen, zoom the frame and drive the desktop from
-/// a horizontal tool bar and a tool sheet.
+/// a horizontal tool bar and a tool sheet. The visual style comes from
+/// ViewerTheme; every accessibility identifier stays stable for existing users.
 public final class iOSViewerRootViewController: UIViewController, UITextFieldDelegate, UIDocumentPickerDelegate {
     private enum DocumentPurpose: Equatable {
         case dictionary
@@ -16,6 +18,7 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
     private let passwordField = UITextField()
     private let connectButton = UIButton(type: .system)
     private let disconnectButton = UIButton(type: .system)
+    private let reconnectButton = UIButton(type: .system)
     private let dictionaryButton = UIButton(type: .system)
     private let toolConnectButton = UIButton(type: .system)
     private let toolDisconnectButton = UIButton(type: .system)
@@ -26,6 +29,13 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
     private let fitButton = UIButton(type: .system)
     private let toolsButton = UIButton(type: .system)
     private let logButton = UIButton(type: .system)
+    private let statusPill = UILabel()
+    private let permissionPill = UILabel()
+    private let headerStack = UIStackView()
+    private let headerTitle = UILabel()
+    private let headerSubtitle = UILabel()
+    private let connectCard = UIView()
+    private let logCard = UIView()
     private let fieldsStack = UIStackView()
     private let actionRow = UIStackView()
     private let contentStack = UIStackView()
@@ -41,6 +51,8 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
     private var computerAudioEnabled = false
     private var cursorPositionsEnabled = false
     private var wallpaperVisible = true
+    private var currentState: ViewerSessionController.State = .idle
+    private var allowsInput = false
     private var aspectConstraint: NSLayoutConstraint?
     private var screenBottomConstraint: NSLayoutConstraint?
     private var screenLeadingConstraint: NSLayoutConstraint?
@@ -49,11 +61,14 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
     public override func viewDidLoad() {
         super.viewDidLoad()
         title = "iOSViewer"
-        view.backgroundColor = .systemBackground
+        view.backgroundColor = ViewerTheme.background
         timeFormatter.timeStyle = .medium
         timeFormatter.dateStyle = .none
+        applyTheme()
         buildLayout()
         applyLayoutMode()
+        updateStatusPill()
+        updatePermissionPill()
         bindController()
         do {
             _ = try UltraViewerScreenDictionary.load()
@@ -82,6 +97,36 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
         }
     }
 
+    // MARK: - Theme
+
+    private func applyTheme() {
+        [connectButton, dictionaryButton].forEach { ViewerTheme.styleButton($0, primary: $0 === connectButton) }
+        [disconnectButton, reconnectButton].forEach { ViewerTheme.styleButton($0) }
+        [toolConnectButton, toolDisconnectButton, requestControlButton, fullscreenButton,
+         zoomInButton, zoomOutButton, fitButton, toolsButton, logButton].forEach {
+            ViewerTheme.styleToolButton($0)
+        }
+        [idField, passwordField].forEach(ViewerTheme.styleField)
+        ViewerTheme.stylePill(statusPill)
+        ViewerTheme.stylePill(permissionPill)
+        ViewerTheme.styleCard(connectCard)
+        ViewerTheme.styleCard(logCard)
+        screenContainer.backgroundColor = .black
+        screenContainer.layer.cornerRadius = ViewerTheme.radius
+        screenContainer.layer.borderWidth = 1
+        screenContainer.layer.borderColor = ViewerTheme.border.cgColor
+        screenContainer.clipsToBounds = true
+        headerTitle.font = .systemFont(ofSize: 22, weight: .bold)
+        headerTitle.textColor = ViewerTheme.text
+        headerSubtitle.font = .systemFont(ofSize: 12, weight: .medium)
+        headerSubtitle.textColor = ViewerTheme.muted
+        logView.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
+        logView.textColor = ViewerTheme.text
+        logView.backgroundColor = ViewerTheme.panelSoft
+        logView.layer.cornerRadius = 12
+        logView.textContainerInset = UIEdgeInsets(top: 8, left: 8, bottom: 8, right: 8)
+    }
+
     // MARK: - Layout
 
     private func configureButton(_ button: UIButton, title: String,
@@ -93,8 +138,13 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
     }
 
     private func buildLayout() {
+        headerTitle.text = "iOSViewer"
+        headerSubtitle.text = "Điều khiển máy Windows từ iPhone"
+        statusPill.accessibilityIdentifier = "status-pill"
+        permissionPill.accessibilityIdentifier = "permission-pill"
+
         idField.placeholder = "ID máy Windows (chỉ chữ số)"
-        idField.borderStyle = .roundedRect
+        idField.borderStyle = .none
         idField.keyboardType = .numberPad
         idField.autocorrectionType = .no
         idField.returnKeyType = .next
@@ -102,25 +152,20 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
         idField.accessibilityIdentifier = "partner-id"
 
         passwordField.placeholder = "Mật khẩu phiên"
-        passwordField.borderStyle = .roundedRect
+        passwordField.borderStyle = .none
         passwordField.isSecureTextEntry = true
         passwordField.returnKeyType = .go
         passwordField.delegate = self
         passwordField.accessibilityIdentifier = "session-password"
 
-        connectButton.setTitle("Kết nối", for: .normal)
-        connectButton.accessibilityIdentifier = "connect"
-        connectButton.accessibilityLabel = "Kết nối"
-        connectButton.addTarget(self, action: #selector(connectTapped), for: .touchUpInside)
-        disconnectButton.setTitle("Ngắt", for: .normal)
-        disconnectButton.accessibilityIdentifier = "disconnect"
-        disconnectButton.accessibilityLabel = "Ngắt"
+        configureButton(connectButton, title: "Kết nối", identifier: "connect", action: #selector(connectTapped))
+        configureButton(disconnectButton, title: "Ngắt", identifier: "disconnect", action: #selector(disconnectTapped))
+        configureButton(reconnectButton, title: "Kết nối lại", identifier: "remote-tool-reconnect",
+                        action: #selector(reconnectTapped))
         disconnectButton.isEnabled = false
-        disconnectButton.addTarget(self, action: #selector(disconnectTapped), for: .touchUpInside)
-        dictionaryButton.setTitle("Chọn từ điển", for: .normal)
-        dictionaryButton.accessibilityIdentifier = "choose-dictionary"
-        dictionaryButton.accessibilityLabel = "Chọn từ điển"
-        dictionaryButton.addTarget(self, action: #selector(chooseDictionaryTapped), for: .touchUpInside)
+        reconnectButton.isEnabled = false
+        configureButton(dictionaryButton, title: "Chọn từ điển", identifier: "choose-dictionary",
+                        action: #selector(chooseDictionaryTapped))
 
         configureButton(toolConnectButton, title: "Kết nối", identifier: "remote-tool-connect",
                         action: #selector(connectTapped))
@@ -141,28 +186,53 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
 
         logView.isEditable = false
         logView.isSelectable = true
-        logView.font = .systemFont(ofSize: 12)
-        logView.backgroundColor = .secondarySystemBackground
         logView.accessibilityIdentifier = "status-log"
         logView.text = ""
 
+        headerStack.axis = .horizontal
+        headerStack.spacing = 10
+        headerStack.alignment = .center
+        let titles = UIStackView(arrangedSubviews: [headerTitle, headerSubtitle])
+        titles.axis = .vertical
+        titles.spacing = 2
+        let pills = UIStackView(arrangedSubviews: [statusPill, permissionPill])
+        pills.axis = .vertical
+        pills.spacing = 6
+        pills.alignment = .fill
+        headerStack.addArrangedSubview(titles)
+        headerStack.addArrangedSubview(pills)
+
         fieldsStack.axis = .vertical
-        fieldsStack.spacing = 8
+        fieldsStack.spacing = 10
         fieldsStack.addArrangedSubview(idField)
         fieldsStack.addArrangedSubview(passwordField)
 
         actionRow.axis = .horizontal
-        actionRow.spacing = 8
+        actionRow.spacing = 10
         actionRow.distribution = .fillEqually
         actionRow.addArrangedSubview(connectButton)
         actionRow.addArrangedSubview(disconnectButton)
         actionRow.addArrangedSubview(dictionaryButton)
 
-        let toolButtons = [toolConnectButton, toolDisconnectButton, requestControlButton,
+        let connectInner = UIStackView(arrangedSubviews: [fieldsStack, actionRow])
+        connectInner.axis = .vertical
+        connectInner.spacing = 12
+        connectCard.addSubview(connectInner)
+        connectInner.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            connectInner.topAnchor.constraint(equalTo: connectCard.topAnchor, constant: 14),
+            connectInner.leadingAnchor.constraint(equalTo: connectCard.leadingAnchor, constant: 14),
+            connectInner.trailingAnchor.constraint(equalTo: connectCard.trailingAnchor, constant: -14),
+            connectInner.bottomAnchor.constraint(equalTo: connectCard.bottomAnchor, constant: -14),
+            idField.heightAnchor.constraint(equalToConstant: 42),
+            passwordField.heightAnchor.constraint(equalToConstant: 42)
+        ])
+
+        let toolButtons = [toolConnectButton, toolDisconnectButton, reconnectButton, requestControlButton,
                            fullscreenButton, zoomInButton, zoomOutButton, fitButton, toolsButton, logButton]
         let toolStack = UIStackView(arrangedSubviews: toolButtons)
         toolStack.axis = .horizontal
-        toolStack.spacing = 12
+        toolStack.spacing = 10
         toolStack.alignment = .center
         toolStack.translatesAutoresizingMaskIntoConstraints = false
         toolbarScroll.addSubview(toolStack)
@@ -170,20 +240,27 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
         toolbarScroll.showsHorizontalScrollIndicator = false
         toolbarScroll.accessibilityIdentifier = "remote-tool-bar"
 
-        contentStack.axis = .vertical
-        contentStack.spacing = 10
-        contentStack.translatesAutoresizingMaskIntoConstraints = false
-        contentStack.addArrangedSubview(fieldsStack)
-        contentStack.addArrangedSubview(actionRow)
-        contentStack.addArrangedSubview(toolbarScroll)
-        contentStack.addArrangedSubview(logView)
+        logCard.addSubview(logView)
+        logView.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            logView.topAnchor.constraint(equalTo: logCard.topAnchor, constant: 6),
+            logView.leadingAnchor.constraint(equalTo: logCard.leadingAnchor, constant: 6),
+            logView.trailingAnchor.constraint(equalTo: logCard.trailingAnchor, constant: -6),
+            logView.bottomAnchor.constraint(equalTo: logCard.bottomAnchor, constant: -6)
+        ])
 
-        screenContainer.translatesAutoresizingMaskIntoConstraints = false
-        screenContainer.clipsToBounds = true
-        screenContainer.backgroundColor = .black
+        contentStack.axis = .vertical
+        contentStack.spacing = 12
+        contentStack.translatesAutoresizingMaskIntoConstraints = false
+        contentStack.addArrangedSubview(headerStack)
+        contentStack.addArrangedSubview(connectCard)
+        contentStack.addArrangedSubview(toolbarScroll)
+        contentStack.addArrangedSubview(logCard)
+
         screenView.translatesAutoresizingMaskIntoConstraints = false
         screenView.accessibilityIdentifier = "remote-screen"
         screenContainer.addSubview(screenView)
+        screenContainer.translatesAutoresizingMaskIntoConstraints = false
 
         view.addSubview(contentStack)
         view.addSubview(screenContainer)
@@ -211,7 +288,7 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
             contentStack.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -16),
             leading, trailing, aspect, bottom,
             screenContainer.topAnchor.constraint(equalTo: contentStack.bottomAnchor, constant: 12),
-            logView.heightAnchor.constraint(equalToConstant: 110),
+            logCard.heightAnchor.constraint(equalToConstant: 122),
             toolStack.topAnchor.constraint(equalTo: toolbarScroll.topAnchor),
             toolStack.bottomAnchor.constraint(equalTo: toolbarScroll.bottomAnchor),
             toolStack.leadingAnchor.constraint(equalTo: toolbarScroll.leadingAnchor),
@@ -226,11 +303,12 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
     }
 
     private func applyLayoutMode() {
-        fieldsStack.isHidden = isFullscreen
-        actionRow.isHidden = isFullscreen
-        logView.isHidden = isFullscreen || !logVisible
+        headerStack.isHidden = isFullscreen
+        connectCard.isHidden = isFullscreen
+        logCard.isHidden = isFullscreen || !logVisible
         toolConnectButton.isHidden = isFullscreen
         toolDisconnectButton.isHidden = isFullscreen
+        reconnectButton.isHidden = isFullscreen
         fullscreenButton.setTitle(isFullscreen ? "Thoát full" : "Toàn màn hình", for: .normal)
         fullscreenButton.accessibilityLabel = isFullscreen ? "Thoát toàn màn hình" : "Toàn màn hình"
         logButton.setTitle(logVisible && !isFullscreen ? "Ẩn nhật ký" : "Hiện nhật ký", for: .normal)
@@ -276,17 +354,53 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
         }
         controller.onState = { [weak self] state in
             guard let self else { return }
-            let connected = state != .idle
-            self.connectButton.isEnabled = !connected
-            self.toolConnectButton.isEnabled = !connected
-            self.disconnectButton.isEnabled = connected
-            self.toolDisconnectButton.isEnabled = connected
-            self.idField.isEnabled = !connected
-            self.passwordField.isEnabled = !connected
+            self.currentState = state
+            self.updateStatusPill()
+            let active = state == .connected
+            let busy = state != .idle
+            self.connectButton.isEnabled = !busy
+            self.toolConnectButton.isEnabled = !busy
+            self.disconnectButton.isEnabled = busy
+            self.toolDisconnectButton.isEnabled = busy
+            self.reconnectButton.isEnabled = state != .idle
+            self.idField.isEnabled = !busy
+            self.passwordField.isEnabled = !busy
+        }
+        controller.onPermission = { [weak self] allowed in
+            guard let self else { return }
+            self.allowsInput = allowed
+            self.updatePermissionPill()
         }
         screenView.onPointer = { [weak self] kind, point in
             self?.controller.sendPointer(kind, at: point)
         }
+    }
+
+    private func updateStatusPill() {
+        let text: String
+        let color: UIColor
+        switch currentState {
+        case .idle:
+            text = "CHƯA KẾT NỐI"
+            color = ViewerTheme.muted
+        case .connecting:
+            text = "ĐANG KẾT NỐI"
+            color = ViewerTheme.warning
+        case .connected:
+            text = "ĐÃ KẾT NỐI"
+            color = ViewerTheme.success
+        }
+        statusPill.text = "  \(text)  "
+        statusPill.backgroundColor = color.withAlphaComponent(0.18)
+        statusPill.textColor = color
+    }
+
+    private func updatePermissionPill() {
+        let text = allowsInput ? "ĐANG ĐIỀU KHIỂN" : "CHỈ XEM"
+        let color = allowsInput ? ViewerTheme.accent : ViewerTheme.warning
+        permissionPill.text = "  \(text)  "
+        permissionPill.backgroundColor = color.withAlphaComponent(0.18)
+        permissionPill.textColor = color
     }
 
     private func appendLog(_ text: String) {
@@ -321,6 +435,10 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
 
     @objc private func disconnectTapped() {
         Task { await controller.disconnect() }
+    }
+
+    @objc private func reconnectTapped() {
+        Task { await controller.reconnect() }
     }
 
     @objc private func requestControlTapped() {
@@ -359,6 +477,9 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
     @objc private func toolsTapped() {
         let sheet = UIAlertController(title: "Công cụ điều khiển", message: nil, preferredStyle: .actionSheet)
 
+        sheet.addAction(UIAlertAction(title: "Kết nối lại", style: .default) { [weak self] _ in
+            Task { await self?.controller.reconnect() }
+        })
         sheet.addAction(UIAlertAction(title: "Xin lại quyền điều khiển", style: .default) { [weak self] _ in
             Task { await self?.controller.requestControlPermission() }
         })
@@ -495,7 +616,7 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
     }
 
     /// Action-sheet handlers can present a second alert while the first is
-    /// still on screen; dismissing it first avoids a "already presenting" fail.
+    /// still on screen; dismissing it first avoids an "already presenting" fail.
     private func presentAfterDismiss(_ controller: UIViewController) {
         if let presented = presentedViewController {
             presented.dismiss(animated: true) { [weak self] in

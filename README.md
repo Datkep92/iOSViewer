@@ -9,10 +9,12 @@ Mã port nằm hoàn toàn trong `iOSViewer/`; đây không phải dự án Node
 - `iOSViewer/Sources/UltraViewerProtocol/` — đăng ký client, tra cứu peer, mã hóa cũ, đóng khung, relay/peer transport, giải mã màn hình, lệnh từ xa (giữ từ MacViewer).
 - `iOSViewer/Sources/CZstd/`, `iOSViewer/Sources/CG722/` — mã nguồn C kèm license riêng.
 - `iOSViewer/Sources/iOSViewerKit/` — hồ sơ đăng ký iOS, điều khiển phiên, ảnh màn hình, giao diện UIKit, scene delegate.
+- `iOSViewer/Sources/RemoteControlKit/` — thư viện dùng chung: kết nối/tự kết nối lại, xin quyền điều khiển, gộp lệnh chuột/phím. Không phụ thuộc UIKit.
 - `iOSViewer/Sources/iOSViewerApp/` — điểm vào app, cấu hình scene, dùng `iOSViewerRootViewController` làm màn hình gốc.
 - `iOSViewer/Sources/iOSViewerScaffold/` — scaffold cũ, chỉ in thông báo; không phải app chạy được.
-- `iOSViewerApp-Info.plist` — Info.plist của app (bundle id `local.apelin.iOSViewer`, iOS 16).
+- `iOSViewerApp-Info.plist` — Info.plist của app (bundle id `local.apelin.iOSViewer`, iOS 16, khai báo icon sinh bằng mã).
 - `iOSViewer/Scripts/check_ios_viewer.py` — kiểm tra tĩnh, không cần build.
+- `iOSViewer/Scripts/make_app_icon.py` — sinh các kích thước icon PNG bằng mã; không lưu ảnh nhị phân trong kho.
 - `.github/workflows/build-ios-app.yml` — build app trên macOS bằng GitHub Actions, đóng gói `.ipa`.
 
 ## Build app bằng GitHub Actions
@@ -38,7 +40,8 @@ Thông tin đăng ký của client (identity/password dùng để đăng ký v�
 ## Giới hạn
 
 - **Chưa biên dịch, chưa chạy thật trên iPhone này.** Thiết bị không có toolchain, CPU thiếu `FEAT_LRCPC`; việc build/test cần Xcode trên máy tính hoặc GitHub Actions. Kết quả workflow cần được đọc trên tab Actions.
-- Bản iOS chưa có giao diện cho âm thanh máy tính, bảng nhớ tạm, chat, truyền tệp, đổi chiều điều khiển hay lớp vẽ con trỏ; các sự kiện đó chỉ được ghi vào log.
+- Bản iOS đã có giao diện cho âm thanh máy tính, bảng nhớ tạm, chat, truyền tệp, đổi chiều điều khiển và các phím tắt; **chưa kiểm chứng trên Windows** nên không coi là đã hoạt động. Lớp vẽ con trỏ từ xa vẫn chưa có.
+- Giao diện dùng bảng phối màu tối, có thẻ trạng thái kết nối/quyền điều khiển và nút «Kết nối lại». Icon app được sinh bằng mã lúc build, không lưu ảnh trong kho.
 - Kết nối trực tiếp LAN bị tắt để không cần quyền Local Network; kết nối relay vẫn dùng chung mã gốc.
 - Cần `8bit.dat` hợp pháp từ người dùng. Kho này **không chứa, không sao chép và không commit** tệp đó hay bất kỳ blob nhị phân bản quyền nào.
 - Không dùng AppKit, storyboard hay Theos. `iOSViewerScaffold` chỉ là scaffold; sản phẩm app là `iOSViewerApp`.
