@@ -27,7 +27,9 @@ jobs:
             --package-path iOSViewer \
             --triple arm64-apple-ios16.0 \
             --product iOSViewerApp \
-            -Xswiftc -sdk -Xswiftc "$sdkroot"
+            -Xswiftc -sdk -Xswiftc "$sdkroot" \
+            -Xcc -isysroot -Xcc "$sdkroot" \
+            -Xcxx -isysroot -Xcxx "$sdkroot"
 
       - name: Assemble unsigned app bundle
         run: |
