@@ -31,16 +31,19 @@ Artifact là app **chưa ký chính thức**: không cài được lên iPhone t
 
 1. Dùng artifact `iOSViewer-unsigned` từ Actions để kiểm tra trên môi trường cho phép app ký tạm, hoặc tự ký lại bằng chứng chỉ của bạn. Trên máy có Xcode 15+, có thể chọn trực tiếp sản phẩm `iOSViewerApp` trong `iOSViewer/Package.swift`, hoặc thêm package local vào một iOS App target và dùng `iOSViewerRootViewController()` làm root; scene delegate đã được khai báo trong Info.plist và trong mã app.
 2. **Chuẩn bị từ điển giải mã:** lấy `8bit.dat` từ bản UltraViewer mà bạn có quyền sử dụng, rồi trong app bấm **Chọn từ điển** và chọn tệp đó. Ứng dụng sẽ chép vào `Documents/8bit.dat` của sandbox, kiểm tra đúng 112.640 byte và mã băm `9aa45789d9ff9d329a623a685d57b67e33c777019de9ce1f273f21860e4bfe6b`. Bạn cũng có thể tự đặt tệp vào `Documents/8bit.dat` qua Files.
-3. Nhập ID máy Windows (chuỗi chữ số do UltraViewer hiển thị) và mật khẩu phiên, bấm **Kết nối**.
-4. Khi có khung hình, chạm một lần = click chuột trái; chạm hai lần = double click; nhấn giữ = click chuột phải. Mỗi thao tác gửi lệnh di chuyển rồi lệnh nút chuột tới máy Windows.
-5. Bấm **Ngắt** để gửi lệnh kết thúc và đóng phiên.
+3. Nhập ID máy Windows (chuỗi chữ số do UltraViewer hiển thị) và mật khẩu phiên, bấm **Kết nối**. Sau lần kết nối thành công, máy được lưu; lần sau bấm **Máy đã lưu** rồi chọn máy để điền sẵn thông tin. Nút **Giữ kết nối** (mặc định Bật) giúp app tự nối lại khi bạn quay lại sau khi chuyển ứng dụng; iOS vẫn có thể ngừng phiên nền.
+4. Chọn **Chế độ** trên thanh công cụ: **Chạm trực tiếp** (chạm đúng vị trí cần click), **Bàn rê** (kéo một ngón để di chuyển con trỏ ảo, chạm để click tại con trỏ — vòng trắng trên khung hình là vị trí con trỏ), hoặc **Cần điều khiển** (đẩy cần ảo ở góc dưới bên phải theo hướng muốn đi). Lựa chọn được nhớ giữa các lần mở app. Chế độ bàn rê và cần ảo chưa được kiểm chứng với máy Windows thật.
+5. Khi có khung hình, các cử chỉ chạm, chạm đôi, giữ lâu, kéo một ngón, chổm hai ngón và vuốt hai ngón vẫn dùng như trước; trong chế độ bàn rê/cần điều khiển, kéo một ngón dùng để di chuyển con trỏ thay vì click tại điểm chạm.
+6. Bấm **Ngắt** để gửi lệnh kết thúc và đóng phiên.
+7. Để Windows điều khiển ngược lại iPhone: mở **Bảng công cụ → Đổi chiều điều khiển**. App sẽ xin ID số và mật khẩu thật từ dịch vụ rồi hiện cho bạn (có nút chép ID và gửi sang Windows). Trên Windows, nhập đúng ID/mật khẩu đó để gọi lại iPhone; khi có yêu cầu, iPhone hiện hộp để bạn chấp nhận hoặc từ chối. Không nhập ID/mật khẩu tự đặt — dịch vụ sẽ không nhận.
 
 Thông tin đăng ký của client (identity/password dùng để đăng ký với dịch vụ) được tạo ngẫu nhiên ngay trên thiết bị và lưu trong Application Support của app. Không có credential nào nằm trong mã nguồn hay tài liệu này.
 
 ## Giới hạn
 
 - **Chưa biên dịch, chưa chạy thật trên iPhone này.** Thiết bị không có toolchain, CPU thiếu `FEAT_LRCPC`; việc build/test cần Xcode trên máy tính hoặc GitHub Actions. Kết quả workflow cần được đọc trên tab Actions.
-- Bản iOS đã có giao diện cho âm thanh máy tính, bảng nhớ tạm, chat, truyền tệp, đổi chiều điều khiển và các phím tắt; **chưa kiểm chứng trên Windows** nên không coi là đã hoạt động. Lớp vẽ con trỏ từ xa vẫn chưa có.
+- Bản iOS đã có giao diện cho âm thanh máy tính, bảng nhớ tạm, chat, truyền tệp, đổi chiều điều khiển và các phím tắt; **chưa kiểm chứng trên Windows** nên không coi là đã hoạt động. Vòng trỏ ảo chỉ mới có trong chế độ bàn rê, chưa kiểm chứng với máy Windows. Ba chế độ chuột, cần ảo, danh sách máy đã lưu, tự nối lại sau khi chuyển ứng dụng, luồng xin ID thật cho kết nối ngược và việc zoom đúng điểm chổm mới chỉ có mã, chưa build/cài bản mới để thử thật.
+- Danh sách máy đã lưu giữ ID và mật khẩu phiên **dạng rõ** trong bộ nhớ riêng của app (tối đa 12 máy); chỉ dùng cho bản cá nhân, không dùng cho bản phân phối chung.
 - Giao diện dùng bảng phối màu tối, có thẻ trạng thái kết nối/quyền điều khiển và nút «Kết nối lại». Icon app được sinh bằng mã lúc build, không lưu ảnh trong kho.
 - Kết nối trực tiếp LAN bị tắt để không cần quyền Local Network; kết nối relay vẫn dùng chung mã gốc.
 - Cần `8bit.dat` hợp pháp từ người dùng. Kho này **không chứa, không sao chép và không commit** tệp đó hay bất kỳ blob nhị phân bản quyền nào.

@@ -2,9 +2,9 @@
 """Kiểm tra tĩnh bản port iOSViewer không cần toolchain hay build trên máy.
 
 Phần kiểm tra giao diện mới chỉ xác nhận mã nguồn và Info.plist có các
-thành phần: xoay ngang, toàn màn hình, phóng to ảnh và nhóm công cụ điều
-khiển. Đây là kiểm tra hiện diện (needle), không chứng minh hành vi chạy
-thật trên máy Windows.
+thành phần: xoay ngang, toàn màn hình, phóng to ảnh, nhóm công cụ điều
+khiển, ba chế độ chuột, giữ phiên khi chuyển app và danh sách máy đã lưu.
+Đây là kiểm tra hiện diện (needle), không chứng minh hành vi chạy thật.
 """
 from pathlib import Path
 import sys
@@ -51,6 +51,8 @@ for needle in ("UIInterfaceOrientationLandscapeLeft", "UIInterfaceOrientationLan
     check(needle in plist, f"Info.plist chưa khai báo xoay ngang: {needle}")
 for needle in ("CFBundleIcons", "CFBundleIconFiles", "AppIcon60x60@2x.png"):
     check(needle in plist, f"Info.plist chưa khai báo icon app: {needle}")
+for needle in ("UIBackgroundModes", "<string>voip</string>"):
+    check(needle in plist, f"Info.plist chưa khai báo giữ phiên nền: {needle}")
 workflow = read(ROOT / ".github/workflows/build-ios-app.yml")
 for needle in ("make_app_icon.py", "AppIcon*.png"):
     check(needle in workflow, f"Workflow chưa sinh/copy icon: {needle}")
@@ -81,6 +83,8 @@ required = [
     "Sources/iOSViewerKit/ViewerSessionController.swift",
     "Sources/iOSViewerKit/iOSViewerTheme.swift",
     "Sources/iOSViewerKit/RemoteScreenImageView.swift",
+    "Sources/iOSViewerKit/RemoteJoystickView.swift",
+    "Sources/iOSViewerKit/ViewerPreferences.swift",
     "Sources/iOSViewerKit/iOSViewerRootViewController.swift",
     "Sources/iOSViewerKit/iOSViewerSceneDelegate.swift",
     "Sources/RemoteControlKit/RemoteControlClient.swift",
@@ -106,6 +110,10 @@ for needle in ("UIViewController", "UITextField", "UIDocumentPickerViewControlle
                "NSLayoutConstraint", "remote-tool-", "remote-tool-request-control", "remote-tool-reconnect"):
     check(needle in uikit, f"Giao diện UIKit thiếu {needle}")
 check("fullscreen" in uikit.lower(), "Giao diện UIKit thiếu chế độ toàn màn hình (fullscreen)")
+for needle in ("remote-tool-pointer-mode", "remote-tool-connections", "remote-tool-keep-alive",
+               "ConnectionStore.save", "prepareForBackground", "resumeAfterBackground",
+               "startIncomingHost", "showIncomingCredentials", "hostController"):
+    check(needle in uikit, f"Giao diện UIKit thiếu tính năng chế độ/danh sách máy/nền: {needle}")
 theme = read(IOS / "Sources/iOSViewerKit/iOSViewerTheme.swift")
 for needle in ("ViewerTheme", "styleCard", "styleButton", "stylePill"):
     check(needle in theme, f"Theme giao diện thiếu {needle}")
@@ -113,8 +121,21 @@ check("ViewerTheme" in uikit, "Giao diện UIKit chưa áp dụng ViewerTheme")
 view = read(IOS / "Sources/iOSViewerKit/RemoteScreenImageView.swift")
 for needle in ("UIImageView", "UITapGestureRecognizer", "UILongPressGestureRecognizer", "UIPanGestureRecognizer",
                "wheel(delta:", "horizontalWheel", "remotePoint", "UIPinchGestureRecognizer", "zoomScale",
-               "zoomIn", "resetZoom"):
+               "zoomIn", "resetZoom", "pinchAnchor", "handleZoomPan"):
     check(needle in view, f"Chế độ xem màn hình thiếu {needle}")
+for needle in ("RemotePointerMode", "virtualCursor", "moveVirtualCursor", "viewPoint(fromDesktop"):
+    check(needle in view, f"Chế độ xem màn hình thiếu cơ chế con trỏ ảo: {needle}")
+joystick = read(IOS / "Sources/iOSViewerKit/RemoteJoystickView.swift")
+for needle in ("RemoteJoystickView", "onVector", "UIPanGestureRecognizer", "remote-joystick"):
+    check(needle in joystick, f"Cần điều khiển ảo thiếu {needle}")
+prefs = read(IOS / "Sources/iOSViewerKit/ViewerPreferences.swift")
+for needle in ("RemotePointerMode", "SavedConnection", "ConnectionStore", "UserDefaults",
+               "keepConnectionInBackground"):
+    check(needle in prefs, f"Lưu máy/chế độ thiếu {needle}")
+scene = read(IOS / "Sources/iOSViewerKit/iOSViewerSceneDelegate.swift")
+for needle in ("beginBackgroundTask", "sceneDidEnterBackground", "sceneWillEnterForeground",
+               "resumeAfterBackground"):
+    check(needle in scene, f"Vòng đời app thiếu giữ/nối lại phiền: {needle}")
 controller = read(IOS / "Sources/iOSViewerKit/ViewerSessionController.swift")
 for needle in ("UltraViewerRelaySession", "frame", "sendPointer", "allowsRemoteInput", "applyInputPermission",
                "sendChat", "sendClipboardText", "sendKeyboardText", "sendFile", "acceptLastFileOffer",
@@ -127,6 +148,10 @@ for needle in ("UltraViewerRelaySession", "MouseMessage", "sendPointer", "vertic
                "horizontalWheel", "wheelWParam", "allowsRemoteInput", "applyInputPermission",
                "requestRemoteControl", "scheduleReconnect", "sendBatch"):
     check(needle in client, f"Thư viện điều khiển dùng chung thiếu {needle}")
+host_controller = read(IOS / "Sources/iOSViewerKit/ViewerHostController.swift")
+for needle in ("UltraViewerHostSession", "registered(", "approvePending", "declinePending",
+               "submitFrame(", "placeholderFrame", "frame(from:", "onRegistered", "onRequest"):
+    check(needle in host_controller, f"Nhận kết nối ngược thiếu {needle}")
 
 readme = read(ROOT / "README.md")
 for needle in ("iOS 16", "8bit.dat", "MIT", "Chưa"):

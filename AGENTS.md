@@ -28,7 +28,7 @@ Từ root project:
 python3 iOSViewer/Scripts/check_ios_viewer.py
 ```
 
-Bộ kiểm tra có thêm needle cho giao diện mới: xoay ngang (`LandscapeLeft`, `LandscapeRight`), toàn màn hình, chổm/phóng to (`UIPinchGestureRecognizer`, `zoomScale`, `zoomIn`, `resetZoom`) và nhóm công cụ (`remote-tool-` cùng các hàm gửi lệnh). Ngoài ra kiểm tra theme tối (`ViewerTheme`), icon (khóa `CFBundleIcons` trong plist và lệnh sinh/copy icon trong workflow), thư viện dùng chung (`RemoteControlKit`) và nút «Kết nối lại». Chạy lệnh trên để lấy kết quả hiện tại; mốc mới nhất **603/603** (24/11/2026) sau khi thêm các needle này. Mốc **562/562** (23/11/2026) là trước khi thêm giao diện tối, icon và thư viện dùng chung; **532/532** là mốc cũ hơn nữa.
+Bộ kiểm tra có thêm needle cho giao diện mới: xoay ngang (`LandscapeLeft`, `LandscapeRight`), toàn màn hình, chổm/phóng to (`UIPinchGestureRecognizer`, `zoomScale`, `zoomIn`, `resetZoom`, `pinchAnchor`, `handleZoomPan`) và nhóm công cụ (`remote-tool-` cùng các hàm gửi lệnh). Ngoài ra kiểm tra theme tối (`ViewerTheme`), icon (khóa `CFBundleIcons` trong plist và lệnh sinh/copy icon trong workflow), thư viện dùng chung (`RemoteControlKit`) và nút «Kết nối lại». Bộ kiểm tra cũng có needle cho ba chế độ chuột (`RemotePointerMode`, `RemoteJoystickView`, `remote-tool-pointer-mode`), lưu máy (`ConnectionStore`, `remote-tool-connections`), giữ kết nối (`UIBackgroundModes`, `prepareForBackground`, `remote-tool-keep-alive`) và nhận kết nối ngược (`ViewerHostController`, `UltraViewerHostSession`, `approvePending`, `declinePending`, `onRequest`, `startIncomingHost`, `showIncomingCredentials`). Chạy lệnh trên để lấy kết quả hiện tại; mốc mới nhất **668/668** (25/11/2026) sau khi sửa zoom theo điểm chổm và thay luồng xin ID/mật khẩu thật cho kết nối ngược. Mốc **646/646** (25/11/2026) là trước khi sửa hai lỗi đó; **603/603** (24/11/2026) là trước khi thêm chế độ chuột/lưu máy/chuyển ứng dụng; **562/562** (23/11/2026) là trước khi thêm giao diện tối, icon và thư viện dùng chung; **532/532** là mốc cũ hơn nữa.
 
 Bộ kiểm tra cũng chặn: `.macOS(` / `AppKit`, tệp `8bit.dat` nằm trong package, resource `.copy(`/`.process(`, và chuỗi Swift bị cấm. Các needle `wheel(delta:`, `verticalWheel`, `wheelWParam` vẫn được giữ.
 
@@ -44,16 +44,25 @@ Khi ghép app bundle, phải chọn tệp thực thi Mach-O (`MH_EXECUTE`) trong
 
 Bản riêng đã nhúng `8bit.dat` nên không cần chọn tệp trong app; bản sạch bắt người dùng tự cung cấp tệp hợp pháp.
 
-## Giao diện mới (xoay / toàn màn hình / zoom / công cụ)
+## Giao diện mới (xoay / toàn màn hình / zoom / công cụ / chế độ chuột / lưu máy)
 
 - **Xoay:** app hỗ trợ dọc và ngang trái/phải; xoay máy để xem khung hình rộng hơn.
 - **Toàn màn hình:** nút trên thanh công cụ (định danh/thao tác dạng `remote-tool-`) để vào và thoát chế độ toàn màn hình.
 - **Zoom:** chổm hai ngón trên khung hình để phóng to/thu nhỏ; có nút tăng zoom và nút đặt lại mức zoom. Khi đã phóng to, kéo/vuốt để xem các vùng ngoài khung.
 - **Nhóm công cụ điều khiển từ xa:** chat, bảng nhớ tạm, bàn phím, gửi tệp và chấp nhận tệp, âm thanh máy tính, bật/tắt hiển thị con trỏ, chất lượng hình, hình nền, hành động và đổi chiều điều khiển (side switch). Các nút dùng chung tiền tố `remote-tool-`.
-- **Cách dùng cơ bản:** mở app → đợi thông báo sẵn sàng từ điển → kết nối tới máy Windows → dùng các nút trên thanh công cụ. Thao tác khung hình giữ nguyên: chạm ngắn = click trái, chạm đôi = click đôi, giữ lâu = click phải, kéo một ngón = diệt chuột, vuốt hai ngón = cuộn dọc/ngang (khi đã zoom thì vuốt để di chuyển khung); thêm chổm hai ngón để zoom.
+- **Ba chế độ điều khiển chuột** (nút «Chế độ» hoặc mục «Chế độ chuột» trong bảng công cụ; lựa chọn được nhớ giữa các lần mở app):
+  1. **Chạm trực tiếp:** giữ nguyên cách dùng cũ — chạm ngay vị trí muốn click trên khung hình.
+  2. **Bàn rê:** một ngón kéo để di chuyển con trỏ ảo trên máy Windows; chạm để click tại con trỏ. Vòng trắng trên khung hình là vị trí con trỏ ảo (chưa kiểm chứng trên Windows).
+  3. **Cần điều khiển:** cần ảo ở góc dưới bên phải; đẩy theo hướng nào thì con trỏ máy Windows đi theo hướng đó, buông tay là dừng. Chế độ này gửi lệnh di chuyển liên tục (~30 lần/giây).
+- **Lưu danh sách máy:** mỗi lần kết nối thành công, app lưu ID + mật khẩu phiên vào bộ nhớ riêng của app (tối đa 12 máy). Nút «Máy đã lưu» hoặc mục «Danh sách máy đã lưu» cho phép chọn máy để nối lại nhanh và xoá danh sách. **Mật khẩu được lưu dạng rõ trong sandbox** — chỉ dùng cho bản cá nhân trên thiết bị này, không dùng cho bản phân phối chung.
+- **Giữ kết nối khi chuyển ứng dụng:** nút «Giữ kết nối» (mặc định Bật). App xin thời gian chạy nền, lưu máy đang dùng và khi quay lại thì tự gọi nối lại nếu phiên trước đó còn hoạt động. iOS vẫn có thể ngừng phiên nền (đặc biệt với `voip` khi không dùng PushKit), nên đây là **tự nối lại khi quay lại app**, không phải cam kết kết nối không bao giờ đứt.
+
+- **Nhận kết nối ngược (Windows → iPhone):** nút «Đổi chiều điều khiển» trong bảng công cụ không còn hỏi ID/mật khẩu do người dùng tự đặt. App mở một phiên nhận (`UltraViewerHostSession`) với đúng hồ sơ đăng ký của thiết bị, lấy ID số và mật khẩu thật do dịch vụ cấp rồi hiện hộp cho người dùng (có nút chép ID và gửi ID sang Windows). Windows nhập ID/mật khẩu đó để gọi ngược lại; khi có yêu cầu, iPhone hiện hộp «Chấp nhận / Từ chối». Màn hình gửi sang Windows là ảnh chụp giao diện app, có ảnh mẫu dự phòng. Chỉ gửi lệnh đổi chiều sau khi đã có ID/mật khẩu thật.
+
+- **Cách dùng cơ bản:** mở app → đợi thông báo sẵn sàng từ điển → kết nối tới máy Windows → chọn chế độ chuột nếu muốn → dùng các nút trên thanh công cụ. Thao tác khung hình giữ nguyên: chạm ngắn = click trái, chạm đôi = click đôi, giữ lâu = click phải, kéo một ngón = diệt chuột, vuốt hai ngón = cuộn dọc/ngang (khi đã zoom thì vuốt để di chuyển khung); thêm chổm hai ngón để zoom.
 - Nếu Windows hiện «Chưa có quyền điều khiển…», bấm **Xin quyền** trên thanh công cụ (hoặc «Xin lại quyền điều khiển» trong bảng công cụ) để gửi lại yêu cầu; app không tự bật quyền, Windows vẫn phải chấp nhận.
 
-**CHƯA kiểm chứng trên Windows:** bàn phím, âm thanh máy tính, đổi chiều điều khiển (side switch), truyền tệp (gửi và chấp nhận), phím tắt/hành động. Checker tĩnh đạt chỉ chứng minh có mã trở thành công cụ trên giao diện, **không** chứng minh máy Windows nhận và xử lý đúng. Không ghi nhận các mục này là đã xong khi chưa thử trên máy Windows thật.
+**CHƯA kiểm chứng trên Windows:** bàn phím, âm thanh máy tính, đổi chiều điều khiển (side switch) và toàn bộ luồng nhận kết nối ngược vừa sửa, truyền tệp (gửi và chấp nhận), phím tắt/hành động, và hai chế độ chuột mới (bàn rê, cần ảo). Việc zoom đúng điểm chổm và kéo khung khi đã phóng to cũng **chưa thử bằng ngón tay trên máy**; mới chỉ mô phỏng phép toán và kiểm tra tĩnh. Checker tĩnh đạt chỉ chứng minh có mã và văn bản giao diện, **không** chứng minh máy Windows nhận và xử lý đúng, cũng không chứng minh app giữ kết nối được khi chuyển ứng dụng thật. Không ghi nhận các mục này là đã xong khi chưa thử trên máy Windows thật hoặc chưa cài bản mới.
 
 ## Giới hạn trên iPhone hiện tại
 
@@ -61,7 +70,7 @@ Bản riêng đã nhúng `8bit.dat` nên không cần chọn tệp trong app; b�
 - Đã cài bản riêng mới lên máy và kiểm tra tệp thực thi, từ điển đúng băm. Người dùng xác nhận app báo `Đã sẵn sàng từ điển 8bit.dat.` và **đã kết nối được tới máy Windows**. Khung hình và thao tác chạm đang được kiểm chứng tiếp.
 - Điều khiển trên màn hình: chạm ngắn = click trái, chạm đôi = click đôi, giữ lâu = click phải, kéo một ngón = diệt chuột, vuốt hai ngón = cuộn dọc/ngang; khi đã zoom, vuốt để di chuyển khung. Nếu máy Windows để chế độ chỉ xem, app báo rõ và không gửi lệnh. Chưa hỗ trợ kéo thả giữ nút chuột liên tục.
 - Cần **người dùng cung cấp `8bit.dat` hợp pháp** (112.640 byte, SHA-256 `9aa45789d9ff9d329a623a685d57b67e33c777019de9ce1f273f21860e4bfe6b`) cho bản sạch/máy khác. Kho này không chứa, không sao chép và không commit tệp đó hay blob bản quyền nào.
-- Nhóm công cụ mới đã xuất hiện trên bản cài riêng; **chưa thử trên Windows**, nhất là bàn phím, âm thanh, đổi chiều, truyền tệp và phím tắt. Lớp vẽ con trỏ riêng vẫn chưa có; chưa xử lý CAPTCHA/xác thực bổ sung.
+- Nhóm công cụ mới đã xuất hiện trên bản cài 1.1; **chưa thử trên Windows**, nhất là bàn phím, âm thanh, đổi chiều, truyền tệp và phím tắt. Ba chế độ chuột, vòng trỏ ảo trong chế độ bàn rê, cần ảo, danh sách máy đã lưu, tự nối lại sau khi chuyển ứng dụng, luồng xin ID thật cho kết nối ngược và cách zoom theo điểm chổm chỉ mới có mã + kiểm tra tĩnh; bản mới **chưa được build/cài** nên chưa ai thấy chạy thật. Chưa xử lý CAPTCHA/xác thực bổ sung.
 - Không dùng AppKit, storyboard hay Theos. Kết nối trực tiếp LAN bị tắt để khỏi xin quyền Local Network.
 
 ## Git

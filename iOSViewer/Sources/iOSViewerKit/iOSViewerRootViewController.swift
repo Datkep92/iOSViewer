@@ -14,6 +14,7 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
     }
 
     private let controller = ViewerSessionController()
+    private let hostController = ViewerHostController()
     private let idField = UITextField()
     private let passwordField = UITextField()
     private let connectButton = UIButton(type: .system)
@@ -29,6 +30,12 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
     private let fitButton = UIButton(type: .system)
     private let toolsButton = UIButton(type: .system)
     private let logButton = UIButton(type: .system)
+    private let pointerModeButton = UIButton(type: .system)
+    private let connectionsButton = UIButton(type: .system)
+    private let keepAliveButton = UIButton(type: .system)
+    private let joystick = RemoteJoystickView(frame: CGRect(x: 0, y: 0, width: 120, height: 120))
+    private var pendingCredentials: (id: String, password: String)?
+    private var sessionWasActive = false
     private let statusPill = UILabel()
     private let permissionPill = UILabel()
     private let headerStack = UIStackView()
@@ -51,6 +58,7 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
     private var computerAudioEnabled = false
     private var cursorPositionsEnabled = false
     private var wallpaperVisible = true
+    private var lastIncomingCredentials: (id: String, password: String)?
     private var currentState: ViewerSessionController.State = .idle
     private var allowsInput = false
     private var aspectConstraint: NSLayoutConstraint?
@@ -70,6 +78,12 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
         updateStatusPill()
         updatePermissionPill()
         bindController()
+        screenView.mode = ViewerSettings.pointerMode
+        joystick.onVector = { [weak self] vector in
+            self?.screenView.moveVirtualCursor(by: CGPoint(x: vector.dx * 6, y: vector.dy * 6))
+        }
+        applyPointerMode()
+        applyKeepAliveSetting()
         do {
             _ = try UltraViewerScreenDictionary.load()
             appendLog("Đã sẵn sàng từ điển 8bit.dat.")
@@ -103,7 +117,8 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
         [connectButton, dictionaryButton].forEach { ViewerTheme.styleButton($0, primary: $0 === connectButton) }
         [disconnectButton, reconnectButton].forEach { ViewerTheme.styleButton($0) }
         [toolConnectButton, toolDisconnectButton, requestControlButton, fullscreenButton,
-         zoomInButton, zoomOutButton, fitButton, toolsButton, logButton].forEach {
+         zoomInButton, zoomOutButton, fitButton, toolsButton, logButton,
+         pointerModeButton, connectionsButton, keepAliveButton].forEach {
             ViewerTheme.styleToolButton($0)
         }
         [idField, passwordField].forEach(ViewerTheme.styleField)
@@ -183,6 +198,12 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
         configureButton(fitButton, title: "Khớp", identifier: "remote-tool-fit", action: #selector(fitTapped))
         configureButton(toolsButton, title: "Công cụ", identifier: "remote-tool-tools", action: #selector(toolsTapped))
         configureButton(logButton, title: "Ẩn nhật ký", identifier: "remote-tool-log", action: #selector(logTapped))
+        configureButton(pointerModeButton, title: "Chế độ: Chạm trực tiếp",
+                        identifier: "remote-tool-pointer-mode", action: #selector(pointerModeTapped))
+        configureButton(connectionsButton, title: "Máy đã lưu",
+                        identifier: "remote-tool-connections", action: #selector(connectionsTapped))
+        configureButton(keepAliveButton, title: "Giữ kết nối: Bật",
+                        identifier: "remote-tool-keep-alive", action: #selector(keepAliveTapped))
 
         logView.isEditable = false
         logView.isSelectable = true
@@ -229,7 +250,8 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
         ])
 
         let toolButtons = [toolConnectButton, toolDisconnectButton, reconnectButton, requestControlButton,
-                           fullscreenButton, zoomInButton, zoomOutButton, fitButton, toolsButton, logButton]
+                           fullscreenButton, zoomInButton, zoomOutButton, fitButton, toolsButton, logButton,
+                           pointerModeButton, connectionsButton, keepAliveButton]
         let toolStack = UIStackView(arrangedSubviews: toolButtons)
         toolStack.axis = .horizontal
         toolStack.spacing = 10
@@ -260,6 +282,8 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
         screenView.translatesAutoresizingMaskIntoConstraints = false
         screenView.accessibilityIdentifier = "remote-screen"
         screenContainer.addSubview(screenView)
+        joystick.translatesAutoresizingMaskIntoConstraints = false
+        screenContainer.addSubview(joystick)
         screenContainer.translatesAutoresizingMaskIntoConstraints = false
 
         view.addSubview(contentStack)
@@ -298,7 +322,11 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
             screenView.topAnchor.constraint(equalTo: screenContainer.topAnchor),
             screenView.leadingAnchor.constraint(equalTo: screenContainer.leadingAnchor),
             screenView.trailingAnchor.constraint(equalTo: screenContainer.trailingAnchor),
-            screenView.bottomAnchor.constraint(equalTo: screenContainer.bottomAnchor)
+            screenView.bottomAnchor.constraint(equalTo: screenContainer.bottomAnchor),
+            joystick.trailingAnchor.constraint(equalTo: screenContainer.trailingAnchor, constant: -12),
+            joystick.bottomAnchor.constraint(equalTo: screenContainer.bottomAnchor, constant: -12),
+            joystick.widthAnchor.constraint(equalToConstant: 120),
+            joystick.heightAnchor.constraint(equalToConstant: 120)
         ])
     }
 
@@ -309,6 +337,8 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
         toolConnectButton.isHidden = isFullscreen
         toolDisconnectButton.isHidden = isFullscreen
         reconnectButton.isHidden = isFullscreen
+        connectionsButton.isHidden = isFullscreen
+        keepAliveButton.isHidden = isFullscreen
         fullscreenButton.setTitle(isFullscreen ? "Thoát full" : "Toàn màn hình", for: .normal)
         fullscreenButton.accessibilityLabel = isFullscreen ? "Thoát toàn màn hình" : "Toàn màn hình"
         logButton.setTitle(logVisible && !isFullscreen ? "Ẩn nhật ký" : "Hiện nhật ký", for: .normal)
@@ -365,6 +395,11 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
             self.reconnectButton.isEnabled = state != .idle
             self.idField.isEnabled = !busy
             self.passwordField.isEnabled = !busy
+            if state == .connected, let credentials = self.pendingCredentials {
+                ConnectionStore.save(partnerID: credentials.id, password: credentials.password)
+                self.appendLog("Đã lưu máy \(credentials.id) vào danh sách kết nối.")
+                self.pendingCredentials = nil
+            }
         }
         controller.onPermission = { [weak self] allowed in
             guard let self else { return }
@@ -373,6 +408,24 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
         }
         screenView.onPointer = { [weak self] kind, point in
             self?.controller.sendPointer(kind, at: point)
+        }
+        hostController.onStatus = { [weak self] text in
+            self?.appendLog(text)
+        }
+        hostController.onRequest = { [weak self] viewerID in
+            self?.showIncomingRequest(viewerID: viewerID)
+        }
+        hostController.onRegistered = { [weak self] id, password in
+            guard id != self?.lastIncomingCredentials?.id ||
+                    password != self?.lastIncomingCredentials?.password else { return }
+            self?.showIncomingCredentials(id: id, password: password)
+        }
+        hostController.onConnected = { [weak self] viewerID in
+            self?.appendLog("Windows \(viewerID) đã kết nối vào iPhone.")
+        }
+        hostController.frameProvider = { [weak self] in
+            guard let self else { return ViewerHostController.placeholderFrame() }
+            return ViewerHostController.frame(from: self.view)
         }
     }
 
@@ -430,11 +483,15 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
         view.endEditing(true)
         let id = idField.text ?? ""
         let password = passwordField.text ?? ""
+        pendingCredentials = (id: id, password: password)
         Task { await controller.connect(partnerID: id, password: password) }
     }
 
     @objc private func disconnectTapped() {
-        Task { await controller.disconnect() }
+        Task {
+            await controller.disconnect()
+            await hostController.stop()
+        }
     }
 
     @objc private func reconnectTapped() {
@@ -472,6 +529,73 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
         applyLayoutMode()
     }
 
+    @objc private func pointerModeTapped() {
+        let sheet = UIAlertController(title: "Chế độ điều khiển chuột", message: nil, preferredStyle: .actionSheet)
+        for mode in RemotePointerMode.allCases {
+            let title = mode == screenView.mode ? "✓ \(mode.title)" : mode.title
+            sheet.addAction(UIAlertAction(title: title, style: .default) { [weak self] _ in
+                guard let self else { return }
+                ViewerSettings.pointerMode = mode
+                self.applyPointerMode()
+                self.appendLog("Chế độ chuột: \(mode.title).")
+            })
+        }
+        sheet.addAction(UIAlertAction(title: "Xong", style: .cancel))
+        sheet.popoverPresentationController?.sourceView = pointerModeButton
+        presentAfterDismiss(sheet)
+    }
+
+    private func applyPointerMode() {
+        let mode = ViewerSettings.pointerMode
+        screenView.mode = mode
+        joystick.isHidden = mode != .joystick
+        let title = "Chế độ: \(mode.title)"
+        pointerModeButton.setTitle(title, for: .normal)
+        pointerModeButton.accessibilityLabel = title
+    }
+
+    @objc private func connectionsTapped() {
+        let items = ConnectionStore.all()
+        let sheet = UIAlertController(title: "Máy đã lưu",
+                                      message: items.isEmpty ? "Chưa có máy nào. Kết nối một lần để máy được lưu lại."
+                                                            : "Chạm một máy để điền thông tin và kết nối.",
+                                      preferredStyle: .actionSheet)
+        for item in items.prefix(8) {
+            sheet.addAction(UIAlertAction(title: "\(item.label) · \(item.partnerID)", style: .default) { [weak self] _ in
+                guard let self else { return }
+                self.idField.text = item.partnerID
+                self.passwordField.text = item.password
+                self.connectTapped()
+            })
+        }
+        if !items.isEmpty {
+            sheet.addAction(UIAlertAction(title: "Xoá danh sách máy", style: .destructive) { [weak self] _ in
+                guard let self else { return }
+                ConnectionStore.clear()
+                self.appendLog("Đã xoá danh sách máy đã lưu.")
+            })
+        }
+        sheet.addAction(UIAlertAction(title: "Hủy", style: .cancel))
+        sheet.popoverPresentationController?.sourceView = connectionsButton
+        presentAfterDismiss(sheet)
+    }
+
+    @objc private func keepAliveTapped() {
+        let enabled = !ViewerSettings.keepConnectionInBackground
+        ViewerSettings.keepConnectionInBackground = enabled
+        applyKeepAliveSetting()
+        appendLog(enabled ? "Giữ kết nối khi chuyển ứng dụng: Bật."
+                          : "Giữ kết nối khi chuyển ứng dụng: Tắt.")
+    }
+
+    private func applyKeepAliveSetting() {
+        let enabled = ViewerSettings.keepConnectionInBackground
+        let state = enabled ? "Bật" : "Tắt"
+        let title = "Giữ kết nối: \(state)"
+        keepAliveButton.setTitle(title, for: .normal)
+        keepAliveButton.accessibilityLabel = title
+    }
+
     // MARK: - Tool sheet
 
     @objc private func toolsTapped() {
@@ -479,6 +603,17 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
 
         sheet.addAction(UIAlertAction(title: "Kết nối lại", style: .default) { [weak self] _ in
             Task { await self?.controller.reconnect() }
+        })
+        sheet.addAction(UIAlertAction(title: "Chế độ chuột", style: .default) { [weak self] _ in
+            self?.pointerModeTapped()
+        })
+        sheet.addAction(UIAlertAction(title: "Danh sách máy đã lưu", style: .default) { [weak self] _ in
+            self?.connectionsTapped()
+        })
+        let keepTitle = ViewerSettings.keepConnectionInBackground
+            ? "Tắt giữ kết nối khi chuyển app" : "Bật giữ kết nối khi chuyển app"
+        sheet.addAction(UIAlertAction(title: keepTitle, style: .default) { [weak self] _ in
+            self?.keepAliveTapped()
         })
         sheet.addAction(UIAlertAction(title: "Xin lại quyền điều khiển", style: .default) { [weak self] _ in
             Task { await self?.controller.requestControlPermission() }
@@ -572,24 +707,18 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
         })
         sheet.addAction(UIAlertAction(title: "Đổi chiều điều khiển", style: .default) { [weak self] _ in
             guard let self else { return }
+            if let credentials = self.lastIncomingCredentials, self.hostController.isRunning {
+                self.showIncomingCredentials(id: credentials.id, password: credentials.password)
+                return
+            }
             let alert = UIAlertController(
                 title: "Đổi chiều điều khiển",
-                message: "ID và mật khẩu nhập ở đây sẽ được gửi tới máy Windows để máy đó kết nối lại vào iPhone. Chỉ thực hiện khi bạn tin tưởng máy đó.",
+                message: "iPhone sẽ xin một ID số riêng rồi chờ Windows nhập ID đó để kết nối ngược vào máy này. ID và mật khẩu sẽ hiện trên màn hình sau vài giây.",
                 preferredStyle: .alert)
-            alert.addTextField { field in
-                field.placeholder = "ID của bạn (chỉ chữ số)"
-                field.keyboardType = .numberPad
-            }
-            alert.addTextField { field in
-                field.placeholder = "Mật khẩu phiên"
-                field.isSecureTextEntry = true
-            }
             alert.addAction(UIAlertAction(title: "Hủy", style: .cancel))
-            alert.addAction(UIAlertAction(title: "Gửi", style: .default) { [weak alert, weak self] _ in
-                guard let self = self, let fields = alert?.textFields, fields.count >= 2 else { return }
-                let ownID = fields[0].text ?? ""
-                let password = fields[1].text ?? ""
-                Task { await self.controller.requestSideSwitch(ownID: ownID, password: password) }
+            alert.addAction(UIAlertAction(title: "Bắt đầu", style: .default) { [weak self] _ in
+                guard let self else { return }
+                Task { @MainActor in self.startIncomingHost() }
             })
             presentAfterDismiss(alert)
         })
@@ -598,6 +727,56 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
         sheet.popoverPresentationController?.sourceView = view
         sheet.popoverPresentationController?.sourceRect = view.bounds
         present(sheet, animated: true)
+    }
+
+    private func showIncomingRequest(viewerID: String) {
+        let alert = UIAlertController(
+            title: "Windows xin kết nối",
+            message: "Máy \(viewerID) muốn xem màn hình và điều khiển iPhone. Chỉ chấp nhận nếu đó là máy bạn tin tưởng.",
+            preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "Từ chối", style: .cancel) { [weak self] _ in
+            Task { await self?.hostController.declinePending() }
+        })
+        alert.addAction(UIAlertAction(title: "Chấp nhận", style: .default) { [weak self] _ in
+            Task { await self?.hostController.approvePending() }
+        })
+        presentAfterDismiss(alert)
+    }
+
+    private func startIncomingHost() {
+        do {
+            try hostController.start()
+            appendLog("Đang xin ID số cho iPhone từ máy chủ UltraViewer…")
+        } catch {
+            appendLog("Không mở được chế độ nhận kết nối: \(error.localizedDescription)")
+        }
+    }
+
+    private func showIncomingCredentials(id: String, password: String) {
+        lastIncomingCredentials = (id: id, password: password)
+        let alert = UIAlertController(
+            title: "iPhone đã có ID kết nối",
+            message: "Trên Windows, chọn kết nối theo ID rồi nhập đúng ID và mật khẩu bên dưới. Khi Windows gửi yêu cầu, iPhone sẽ hiện hộp để bạn xác nhận.",
+            preferredStyle: .alert)
+        alert.addTextField { field in
+            field.text = id
+            field.isEnabled = false
+        }
+        alert.addTextField { field in
+            field.text = password
+            field.isEnabled = false
+            field.isSecureTextEntry = true
+        }
+        alert.addAction(UIAlertAction(title: "Chép ID", style: .default) { _ in
+            UIPasteboard.general.string = id
+        })
+        alert.addAction(UIAlertAction(title: "Gửi ID sang Windows", style: .default) { [weak self] _ in
+            guard let self else { return }
+            Task { await self.controller.requestSideSwitch(ownID: id, password: password) }
+            self.appendLog("Đã gửi ID \(id) sang Windows để đổi chiều.")
+        })
+        alert.addAction(UIAlertAction(title: "Đã ghi", style: .cancel))
+        presentAfterDismiss(alert)
     }
 
     private func promptText(title: String, placeholder: String,
@@ -624,6 +803,31 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
             }
         } else {
             present(controller, animated: true)
+        }
+    }
+
+    // MARK: - App lifecycle
+
+    /// Gọi khi app đi vào nền: lưu máy đang dùng và xin thêm thời gian ở scene delegate.
+    public func prepareForBackground() {
+        guard ViewerSettings.keepConnectionInBackground else { return }
+        sessionWasActive = currentState != .idle
+        if currentState == .connected, let id = idField.text, !id.isEmpty {
+            ConnectionStore.save(partnerID: id, password: passwordField.text ?? "")
+        } else if let credentials = pendingCredentials {
+            ConnectionStore.save(partnerID: credentials.id, password: credentials.password)
+        }
+        appendLog("Chuyển ứng dụng: đang giữ phiên điều khiển.")
+    }
+
+    /// iOS có thể ngừng phiên nền; quay lại app thì nối lại nếu trước đó đang kết nối.
+    public func resumeAfterBackground() {
+        guard ViewerSettings.keepConnectionInBackground, sessionWasActive else { return }
+        sessionWasActive = false
+        guard currentState != .connected, currentState != .connecting else { return }
+        appendLog("Quay lại app: đang nối lại phiên điều khiển.")
+        Task { [weak self] in
+            await self?.controller.reconnect()
         }
     }
 
