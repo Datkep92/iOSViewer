@@ -187,6 +187,7 @@ public actor FramedTCPTransport {
         var error: CFError?
         if SecTrustEvaluateWithError(trust, &error) { return true }
         let firstReason = error.map(reasonText)
+#if os(macOS)
         guard SecTrustSetOptions(trust, [.allowExpired, .allowExpiredRoot]) == errSecSuccess else {
             if UserDefaults.standard.bool(forKey: skipCertificateCheckKey) { return true }
             rejection.reason = firstReason
@@ -194,6 +195,17 @@ public actor FramedTCPTransport {
         }
         error = nil
         if SecTrustEvaluateWithError(trust, &error) { return true }
+#else
+        // iOS has no SecTrustSetOptions. A chain that is otherwise trusted but
+        // rejected for expiration can be retried with trust exceptions, which
+        // only apply to this evaluated certificate chain.
+        if let firstReason, firstReason.localizedCaseInsensitiveContains("expired"),
+           let exceptions = SecTrustCopyExceptions(trust) {
+            SecTrustSetExceptions(trust, exceptions)
+            error = nil
+            if SecTrustEvaluateWithError(trust, &error) { return true }
+        }
+#endif
         if UserDefaults.standard.bool(forKey: skipCertificateCheckKey) { return true }
         rejection.reason = error.map(reasonText) ?? firstReason
         return false
