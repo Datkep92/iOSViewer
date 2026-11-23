@@ -11,7 +11,7 @@ Mã port nằm hoàn toàn trong `iOSViewer/`; đây không phải dự án Node
 - `iOSViewer/Sources/iOSViewerKit/` — hồ sơ đăng ký iOS, điều khiển phiên, ảnh màn hình, giao diện UIKit, scene delegate.
 - `iOSViewer/Sources/iOSViewerApp/` — điểm vào app, cấu hình scene, dùng `iOSViewerRootViewController` làm màn hình gốc.
 - `iOSViewer/Sources/iOSViewerScaffold/` — scaffold cũ, chỉ in thông báo; không phải app chạy được.
-- `iOSViewer/iOSViewerApp-Info.plist` — Info.plist của app (bundle id `local.apelin.iOSViewer`, iOS 16).
+- `iOSViewerApp-Info.plist` — Info.plist của app (bundle id `local.apelin.iOSViewer`, iOS 16).
 - `iOSViewer/Scripts/check_ios_viewer.py` — kiểm tra tĩnh, không cần build.
 - `.github/workflows/build-ios-app.yml` — build app trên macOS bằng GitHub Actions, đóng gói `.ipa`.
 

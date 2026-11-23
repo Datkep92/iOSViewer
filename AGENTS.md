@@ -16,7 +16,7 @@ Luật làm việc chung của mọi dự án nằm ở skill `sep-working-rules
 - `iOSViewer/Sources/iOSViewerScaffold/` — scaffold SwiftPM cũ, chỉ in thông báo, **không** tạo app bundle.
 - `iOSViewer/Tests/iOSViewerKitTests/` — test gói.
 - `iOSViewer/Scripts/check_ios_viewer.py` — kiểm tra tĩnh, không cần build hay toolchain.
-- `iOSViewer/iOSViewerApp-Info.plist` — Info.plist của app: bundle id `local.apelin.iOSViewer`, khai báo scene, iOS 16.
+- `iOSViewerApp-Info.plist` — Info.plist của app: bundle id `local.apelin.iOSViewer`, khai báo scene, iOS 16.
 - `.github/workflows/build-ios-app.yml` — workflow GitHub Actions build app trên macOS, đóng gói `.ipa` và upload artifact.
 - `README.md`, `iOSViewer/THIRD_PARTY_NOTICES.md` — tài liệu và thông báo bản quyền.
 
