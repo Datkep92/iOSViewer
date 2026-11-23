@@ -112,7 +112,8 @@ for needle in ("UIViewController", "UITextField", "UIDocumentPickerViewControlle
 check("fullscreen" in uikit.lower(), "Giao diện UIKit thiếu chế độ toàn màn hình (fullscreen)")
 for needle in ("remote-tool-pointer-mode", "remote-tool-connections", "remote-tool-keep-alive",
                "ConnectionStore.save", "prepareForBackground", "resumeAfterBackground",
-               "startIncomingHost", "showIncomingCredentials", "hostController"):
+               "startIncomingHost", "showIncomingCredentials", "hostController",
+               "await self.startIncomingHost()", "try await hostController.start()"):
     check(needle in uikit, f"Giao diện UIKit thiếu tính năng chế độ/danh sách máy/nền: {needle}")
 theme = read(IOS / "Sources/iOSViewerKit/iOSViewerTheme.swift")
 for needle in ("ViewerTheme", "styleCard", "styleButton", "stylePill"):
@@ -121,7 +122,7 @@ check("ViewerTheme" in uikit, "Giao diện UIKit chưa áp dụng ViewerTheme")
 view = read(IOS / "Sources/iOSViewerKit/RemoteScreenImageView.swift")
 for needle in ("UIImageView", "UITapGestureRecognizer", "UILongPressGestureRecognizer", "UIPanGestureRecognizer",
                "wheel(delta:", "horizontalWheel", "remotePoint", "UIPinchGestureRecognizer", "zoomScale",
-               "zoomIn", "resetZoom", "pinchAnchor", "handleZoomPan"):
+               "zoomIn", "zoomOut", "resetZoom", "pinchAnchor", "handleZoomPan"):
     check(needle in view, f"Chế độ xem màn hình thiếu {needle}")
 for needle in ("RemotePointerMode", "virtualCursor", "moveVirtualCursor", "viewPoint(fromDesktop"):
     check(needle in view, f"Chế độ xem màn hình thiếu cơ chế con trỏ ảo: {needle}")
@@ -150,7 +151,8 @@ for needle in ("UltraViewerRelaySession", "MouseMessage", "sendPointer", "vertic
     check(needle in client, f"Thư viện điều khiển dùng chung thiếu {needle}")
 host_controller = read(IOS / "Sources/iOSViewerKit/ViewerHostController.swift")
 for needle in ("UltraViewerHostSession", "registered(", "approvePending", "declinePending",
-               "submitFrame(", "placeholderFrame", "frame(from:", "onRegistered", "onRequest"):
+               "submitFrame(", "placeholderFrame", "frame(from:", "onRegistered", "onRequest",
+               "func start() async throws", "try await host.start("):
     check(needle in host_controller, f"Nhận kết nối ngược thiếu {needle}")
 
 readme = read(ROOT / "README.md")

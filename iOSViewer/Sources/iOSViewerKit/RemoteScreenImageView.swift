@@ -305,6 +305,10 @@ public final class RemoteScreenImageView: UIImageView {
         setZoomScale(zoomScale * 1.5)
     }
 
+    public func zoomOut() {
+        setZoomScale(zoomScale / 1.5)
+    }
+
     public func resetZoom() {
         setZoomScale(Self.minimumZoom)
     }

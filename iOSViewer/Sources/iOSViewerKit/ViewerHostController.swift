@@ -21,10 +21,10 @@ final class ViewerHostController {
 
     var isRunning: Bool { running }
 
-    func start() throws {
+    func start() async throws {
         guard !running else { return }
         let registration = try IOSRegistrationProfile.loadOrCreate()
-        let stream = try host.start(configuration: .init(
+        let stream = try await host.start(configuration: .init(
             registration: registration,
             listenerPort: 443))
         running = true

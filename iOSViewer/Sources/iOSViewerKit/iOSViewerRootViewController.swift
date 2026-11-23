@@ -718,7 +718,7 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
             alert.addAction(UIAlertAction(title: "Hủy", style: .cancel))
             alert.addAction(UIAlertAction(title: "Bắt đầu", style: .default) { [weak self] _ in
                 guard let self else { return }
-                Task { @MainActor in self.startIncomingHost() }
+                Task { @MainActor in await self.startIncomingHost() }
             })
             presentAfterDismiss(alert)
         })
@@ -743,9 +743,9 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
         presentAfterDismiss(alert)
     }
 
-    private func startIncomingHost() {
+    private func startIncomingHost() async {
         do {
-            try hostController.start()
+            try await hostController.start()
             appendLog("Đang xin ID số cho iPhone từ máy chủ UltraViewer…")
         } catch {
             appendLog("Không mở được chế độ nhận kết nối: \(error.localizedDescription)")
