@@ -226,10 +226,10 @@ public final class RemoteScreenImageView: UIImageView, UIGestureRecognizerDelega
         let drawn = CGSize(width: image.size.width * scale, height: image.size.height * scale)
         let origin = CGPoint(x: (bounds.width - drawn.width) / 2,
                              y: (bounds.height - drawn.height) / 2)
-        let local = CGPoint(x: (location.x - origin.x) / scale,
-                            y: (location.y - origin.y) / scale)
-        guard local.x >= 0, local.y >= 0,
-              local.x <= image.size.width, local.y <= image.size.height else { return nil }
+        // Chạm hơi lệch ra viền đen vẫn điều khiển mép ảnh thay vì bị bỏ qua;
+        // điều này đặc biệt quan trọng khi ảnh chưa kịp khớp đúng tỉ lệ khung.
+        let local = CGPoint(x: min(max((location.x - origin.x) / scale, 0), image.size.width),
+                            y: min(max((location.y - origin.y) / scale, 0), image.size.height))
         let desktop = remoteSize.width > 0 && remoteSize.height > 0 ? remoteSize : image.size
         return CGPoint(x: min(max(local.x / image.size.width * desktop.width, 0), desktop.width - 1),
                        y: min(max(local.y / image.size.height * desktop.height, 0), desktop.height - 1))

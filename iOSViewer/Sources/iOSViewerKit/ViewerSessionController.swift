@@ -130,6 +130,10 @@ public final class ViewerSessionController {
     /// touch point into that space before calling here.
     public func sendPointer(_ kind: RemotePointerKind, at point: CGPoint) {
         guard let session else { return }
+        if !reportedFirstPointer {
+            reportedFirstPointer = true
+            report("Đã nhận cử chỉ, đang kiểm tra quyền điều khiển từ máy Windows.")
+        }
         guard inputAllowed else {
             if !warnedAboutInputPermission {
                 warnedAboutInputPermission = true
@@ -161,10 +165,6 @@ public final class ViewerSessionController {
         case let .horizontalWheel(delta):
             messages = [.horizontalWheel(wParam: MouseMessage.wheelWParam(delta: delta, keyFlags: 0),
                                          lParam: position)]
-        }
-        if !reportedFirstPointer {
-            reportedFirstPointer = true
-            report("Đã bắt đầu gửi lệnh điều khiển tới máy Windows.")
         }
         Task { [weak self] in
             for message in messages {

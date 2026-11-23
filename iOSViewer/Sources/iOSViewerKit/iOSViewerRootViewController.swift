@@ -41,6 +41,7 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
     private var cursorPositionsEnabled = false
     private var wallpaperVisible = true
     private var aspectConstraint: NSLayoutConstraint?
+    private var screenBottomConstraint: NSLayoutConstraint?
     private var screenLeadingConstraint: NSLayoutConstraint?
     private var screenTrailingConstraint: NSLayoutConstraint?
 
@@ -189,19 +190,24 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
         let trailing = screenContainer.trailingAnchor.constraint(
             equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -16)
         let aspect = screenContainer.heightAnchor.constraint(
-            equalTo: screenContainer.widthAnchor, multiplier: 0.62)
+            equalTo: screenContainer.widthAnchor, multiplier: 0.5625)
         aspect.priority = .defaultHigh
+        let bottom = screenContainer.bottomAnchor.constraint(
+            equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -12)
+        // Ảnh cần đúng tỉ lệ để toàn bộ vùng chạm nằm trên ảnh; khi vào fullscreen
+        // constraint tỉ lệ bị tắt và cái này tự động kéo khung kín màn hình.
+        bottom.priority = .defaultLow
         screenLeadingConstraint = leading
         screenTrailingConstraint = trailing
         aspectConstraint = aspect
+        screenBottomConstraint = bottom
 
         NSLayoutConstraint.activate([
             contentStack.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 12),
             contentStack.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 16),
             contentStack.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -16),
-            leading, trailing, aspect,
+            leading, trailing, aspect, bottom,
             screenContainer.topAnchor.constraint(equalTo: contentStack.bottomAnchor, constant: 12),
-            screenContainer.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -12),
             logView.heightAnchor.constraint(equalToConstant: 110),
             toolStack.topAnchor.constraint(equalTo: toolbarScroll.topAnchor),
             toolStack.bottomAnchor.constraint(equalTo: toolbarScroll.bottomAnchor),
@@ -227,8 +233,28 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
         logButton.setTitle(logVisible && !isFullscreen ? "Ẩn nhật ký" : "Hiện nhật ký", for: .normal)
         screenLeadingConstraint?.constant = isFullscreen ? 0 : 16
         screenTrailingConstraint?.constant = isFullscreen ? 0 : -16
-        aspectConstraint?.isActive = !isFullscreen
+        if isFullscreen {
+            aspectConstraint?.isActive = false
+            screenBottomConstraint?.priority = .required
+        } else {
+            screenBottomConstraint?.priority = .defaultLow
+            aspectConstraint?.isActive = true
+        }
         UIView.animate(withDuration: 0.2) { self.view.layoutIfNeeded() }
+    }
+
+    /// Khung hình luôn ôm đúng ảnh để mọi cử chỉ đều rơi vào ảnh, kể cả máy Windows 4:3.
+    private func updateScreenAspect(width: Int, height: Int) {
+        guard let old = aspectConstraint, width > 0, height > 0 else { return }
+        let ratio = min(max(CGFloat(height) / CGFloat(width), 0.35), 2.0)
+        guard abs(old.multiplier - ratio) > 0.002 else { return }
+        let wasActive = old.isActive
+        NSLayoutConstraint.deactivate([old])
+        let updated = screenContainer.heightAnchor.constraint(
+            equalTo: screenContainer.widthAnchor, multiplier: ratio)
+        updated.priority = .defaultHigh
+        aspectConstraint = updated
+        if wasActive { updated.isActive = true }
     }
 
     // MARK: - Controller bindings
@@ -241,6 +267,9 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
             guard let self else { return }
             self.screenView.image = UIImage(cgImage: image)
             self.screenView.remoteSize = remoteSize
+            if remoteSize.width > 0, remoteSize.height > 0 {
+                self.updateScreenAspect(width: remoteSize.width, height: remoteSize.height)
+            }
         }
         controller.onState = { [weak self] state in
             guard let self else { return }
