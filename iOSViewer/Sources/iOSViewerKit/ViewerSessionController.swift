@@ -63,7 +63,7 @@ public final class ViewerSessionController {
         let session = UltraViewerRelaySession()
         let stream: AsyncThrowingStream<UltraViewerRelaySession.Event, any Swift.Error>
         do {
-            stream = try session.connect(configuration: configuration, partnerID: id, password: password)
+            stream = try await session.connect(configuration: configuration, partnerID: id, password: password)
         } catch {
             report("Không bắt đầu được phiên: \(error.localizedDescription)")
             return

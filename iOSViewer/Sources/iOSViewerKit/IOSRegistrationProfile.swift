@@ -76,7 +76,7 @@ public enum IOSRegistrationProfile {
             credentials = Credentials(deviceIdentity: randomIdentity(), password: randomPassword())
         }
 
-        var request = makeRequest(credentials: credentials, environment: environment)
+        let request = makeRequest(credentials: credentials, environment: environment)
         do {
             _ = try request.encode()
             let bytes = try JSONEncoder().encode(request) + Data([10])
