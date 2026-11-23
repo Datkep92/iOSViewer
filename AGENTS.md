@@ -28,7 +28,7 @@ Từ root project:
 python3 iOSViewer/Scripts/check_ios_viewer.py
 ```
 
-Bộ kiểm tra có thêm needle cho giao diện mới: xoay ngang (`LandscapeLeft`, `LandscapeRight`), toàn màn hình, chổm/phóng to (`UIPinchGestureRecognizer`, `zoomScale`, `zoomIn`, `resetZoom`) và nhóm công cụ (`remote-tool-` cùng các hàm gửi lệnh). Chạy lệnh trên để lấy kết quả hiện tại; mốc **532/532** ghi ngày 23/11/2026 là trước khi thêm các needle này.
+Bộ kiểm tra có thêm needle cho giao diện mới: xoay ngang (`LandscapeLeft`, `LandscapeRight`), toàn màn hình, chổm/phóng to (`UIPinchGestureRecognizer`, `zoomScale`, `zoomIn`, `resetZoom`) và nhóm công cụ (`remote-tool-` cùng các hàm gửi lệnh). Chạy lệnh trên để lấy kết quả hiện tại; mốc mới nhất **558/558** (23/11/2026) đã gồm các needle này và `horizontalWheel`. Mốc **532/532** ghi ngày 23/11/2026 là trước khi thêm các needle trên.
 
 Bộ kiểm tra cũng chặn: `.macOS(` / `AppKit`, tệp `8bit.dat` nằm trong package, resource `.copy(`/`.process(`, và chuỗi Swift bị cấm. Các needle `wheel(delta:`, `verticalWheel`, `wheelWParam` vẫn được giữ.
 
@@ -38,7 +38,7 @@ Trên iPhone này **không có toolchain Swift**, nên không chạy được `s
 
 **GitHub Actions (đã thiết lập):** đẩy lên `main` hoặc chạy tay workflow `.github/workflows/build-ios-app.yml`. Máy macOS có Xcode sẽ chạy kiểm tra tĩnh, build sản phẩm `iOSViewerApp` cho iOS 16, đóng gói `Payload/iOSViewer.app`, ký tạm bằng `codesign --force --sign -` rồi xuất artifact `iOSViewer-packages` gồm hai tệp: `iOSViewer.ipa` (dùng với TrollStore nếu máy đã cài TrollStore) và `iOSViewer.deb` (gói rootless `iphoneos-arm64`, cài bằng Sileo, đặt app tại `/var/jb/Applications/iOSViewer.app`). Cả hai **chưa ký chính thức**; `.deb` chỉ cài được trên iPhone đã jailbreak rootless. Phân phối chính thức cần thêm chứng chỉ và provisioning profile vào workflow.
 
-Khi ghép app bundle, phải chọn tệp thực thi Mach-O (`MH_EXECUTE`) trong `.build`, không lấy tệp đầu tiên trùng tên — tệp dSYM cùng tên sẽ làm TrollStore báo `Unsupported Mach-O type`. Workflow hiện lọc bằng `file -b ... | grep 'Mach-O.*executable'`. Lần kiểm chứng gần nhất: run `45170827408` (commit `1703195`, chạy tay với `include_dictionary=true`) thành công, artifact `iOSViewer-packages-device` có từ điển riêng. Để cài trên máy này, script local `apelin/install-device-build.sh` tải artifact đó rồi Apelin build/install; **không** dùng artifact `iOSViewer-packages` thường vì bản đó không có từ điển.
+Khi ghép app bundle, phải chọn tệp thực thi Mach-O (`MH_EXECUTE`) trong `.build`, không lấy tệp đầu tiên trùng tên — tệp dSYM cùng tên sẽ làm TrollStore báo `Unsupported Mach-O type`. Workflow hiện lọc bằng `file -b ... | grep 'Mach-O.*executable'`. Lần kiểm chứng gần nhất: run `45180426443` (commit `5bc49d0`, chạy tay với `include_dictionary=true`) thành công, artifact `iOSViewer-packages-device` có từ điển riêng; bản cài đã kiểm tra từ điển đúng 112.640 byte và băm `9aa457…`. Kiểm tra tĩnh hiện đạt `558/558`. Để cài trên máy này, script local `apelin/install-device-build.sh` tải artifact đó rồi Apelin build/install; **không** dùng artifact `iOSViewer-packages` thường vì bản đó không có từ điển.
 
 **Máy có Xcode 15+:** dùng trực tiếp sản phẩm `iOSViewerApp` trong `iOSViewer/Package.swift`, hoặc thêm package local `iOSViewer/Package.swift` vào một iOS App target và dùng `iOSViewerRootViewController()` làm root. Scene delegate `iOSViewerSceneDelegate` đã được khai báo trong `iOSViewerApp-Info.plist` và trong mã app.
 
@@ -50,7 +50,7 @@ Bản riêng đã nhúng `8bit.dat` nên không cần chọn tệp trong app; b�
 - **Toàn màn hình:** nút trên thanh công cụ (định danh/thao tác dạng `remote-tool-`) để vào và thoát chế độ toàn màn hình.
 - **Zoom:** chổm hai ngón trên khung hình để phóng to/thu nhỏ; có nút tăng zoom và nút đặt lại mức zoom. Khi đã phóng to, kéo/vuốt để xem các vùng ngoài khung.
 - **Nhóm công cụ điều khiển từ xa:** chat, bảng nhớ tạm, bàn phím, gửi tệp và chấp nhận tệp, âm thanh máy tính, bật/tắt hiển thị con trỏ, chất lượng hình, hình nền, hành động và đổi chiều điều khiển (side switch). Các nút dùng chung tiền tố `remote-tool-`.
-- **Cách dùng cơ bản:** mở app → đợi thông báo sẵn sàng từ điển → kết nối tới máy Windows → dùng các nút trên thanh công cụ. Thao tác khung hình giữ nguyên: chạm ngắn = click trái, chạm đôi = click đôi, giữ lâu = click phải, kéo một ngón = diệt chuột, vuốt hai ngón = cuộn dọc; thêm chổm hai ngón để zoom.
+- **Cách dùng cơ bản:** mở app → đợi thông báo sẵn sàng từ điển → kết nối tới máy Windows → dùng các nút trên thanh công cụ. Thao tác khung hình giữ nguyên: chạm ngắn = click trái, chạm đôi = click đôi, giữ lâu = click phải, kéo một ngón = diệt chuột, vuốt hai ngón = cuộn dọc/ngang (khi đã zoom thì vuốt để di chuyển khung); thêm chổm hai ngón để zoom.
 
 **CHƯA kiểm chứng trên Windows:** bàn phím, âm thanh máy tính, đổi chiều điều khiển (side switch), truyền tệp (gửi và chấp nhận), phím tắt/hành động. Checker tĩnh đạt chỉ chứng minh có mã trở thành công cụ trên giao diện, **không** chứng minh máy Windows nhận và xử lý đúng. Không ghi nhận các mục này là đã xong khi chưa thử trên máy Windows thật.
 
@@ -58,9 +58,9 @@ Bản riêng đã nhúng `8bit.dat` nên không cần chọn tệp trong app; b�
 
 - Thiết bị **không có toolchain**; CPU thiếu `FEAT_LRCPC`. Không build, không chạy test Swift, không respring hay cài toolchain ở đây.
 - Đã cài bản riêng mới lên máy và kiểm tra tệp thực thi, từ điển đúng băm. Người dùng xác nhận app báo `Đã sẵn sàng từ điển 8bit.dat.` và **đã kết nối được tới máy Windows**. Khung hình và thao tác chạm đang được kiểm chứng tiếp.
-- Điều khiển trên màn hình: chạm ngắn = click trái, chạm đôi = click đôi, giữ lâu = click phải, kéo một ngón = diệt chuột, vuốt hai ngón = cuộn dọc. Nếu máy Windows để chế độ chỉ xem, app báo rõ và không gửi lệnh. Chưa hỗ trợ kéo thả giữ nút chuột liên tục.
+- Điều khiển trên màn hình: chạm ngắn = click trái, chạm đôi = click đôi, giữ lâu = click phải, kéo một ngón = diệt chuột, vuốt hai ngón = cuộn dọc/ngang; khi đã zoom, vuốt để di chuyển khung. Nếu máy Windows để chế độ chỉ xem, app báo rõ và không gửi lệnh. Chưa hỗ trợ kéo thả giữ nút chuột liên tục.
 - Cần **người dùng cung cấp `8bit.dat` hợp pháp** (112.640 byte, SHA-256 `9aa45789d9ff9d329a623a685d57b67e33c777019de9ce1f273f21860e4bfe6b`) cho bản sạch/máy khác. Kho này không chứa, không sao chép và không commit tệp đó hay blob bản quyền nào.
-- Nhóm công cụ mới (xem mục trên) đang được tích hợp; **chưa kiểm chứng trên Windows**, nhất là bàn phím, âm thanh, đổi chiều, truyền tệp và phím tắt. Lớp vẽ con trỏ riêng vẫn chưa có; chưa xử lý CAPTCHA/xác thực bổ sung.
+- Nhóm công cụ mới đã xuất hiện trên bản cài riêng; **chưa thử trên Windows**, nhất là bàn phím, âm thanh, đổi chiều, truyền tệp và phím tắt. Lớp vẽ con trỏ riêng vẫn chưa có; chưa xử lý CAPTCHA/xác thực bổ sung.
 - Không dùng AppKit, storyboard hay Theos. Kết nối trực tiếp LAN bị tắt để khỏi xin quyền Local Network.
 
 ## Git
