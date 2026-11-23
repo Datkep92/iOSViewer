@@ -102,7 +102,7 @@ for needle in ("UIImageView", "UITapGestureRecognizer", "UILongPressGestureRecog
     check(needle in view, f"Chế độ xem màn hình thiếu {needle}")
 controller = read(IOS / "Sources/iOSViewerKit/ViewerSessionController.swift")
 for needle in ("UltraViewerRelaySession", "frame", "MouseMessage", "sendPointer", "verticalWheel",
-               "horizontalWheel", "wheelWParam",
+               "horizontalWheel", "wheelWParam", "allowsRemoteInput", "applyInputPermission",
                "sendChat", "sendClipboardText", "sendKeyboardText", "sendFile", "acceptLastFileOffer",
                "setComputerAudioEnabled", "setCursorPositionsEnabled", "setQuality", "setWallpaperVisible",
                "sendAction", "requestSideSwitch"):

@@ -407,6 +407,13 @@ public final class ViewerSessionController {
         return candidate
     }
 
+    private func applyInputPermission(_ allowed: Bool) {
+        guard inputAllowed != allowed else { return }
+        inputAllowed = allowed
+        if allowed { warnedAboutInputPermission = false }
+        report(allowed ? "Điều khiển từ xa đã được cho phép." : "Chỉ xem; điều khiển từ xa tạm dừng.")
+    }
+
     private func handle(_ event: UltraViewerRelaySession.Event) {
         switch event {
         case let .status(text):
@@ -415,9 +422,13 @@ public final class ViewerSessionController {
             peer = newPeer
             state = .connected
             onState?(state)
+            // A host can send its view-only byte before the session becomes
+            // active, in which case no separate inputPermission event follows.
+            applyInputPermission(newPeer.allowsRemoteInput)
             report("Đã kết nối \(newPeer.width)×\(newPeer.height).")
         case let .screenChanged(newPeer):
             peer = newPeer
+            applyInputPermission(newPeer.allowsRemoteInput)
             report("Màn hình máy Windows đổi kích thước: \(newPeer.width)×\(newPeer.height).")
         case let .frame(latest):
             guard let bitmap = latest.take(), let image = bitmap.makeCGImage() else { return }
@@ -425,9 +436,7 @@ public final class ViewerSessionController {
                 ?? CGSize(width: bitmap.width, height: bitmap.height)
             onFrame?(image, size)
         case let .inputPermission(allowed):
-            inputAllowed = allowed
-            if allowed { warnedAboutInputPermission = false }
-            report(allowed ? "Điều khiển từ xa đã được cho phép." : "Chỉ xem; điều khiển từ xa tạm dừng.")
+            applyInputPermission(allowed)
         case let .chat(text):
             lastChatText = text
             report("Tin nhắn: \(text)")
