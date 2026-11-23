@@ -37,6 +37,23 @@ public enum UltraViewerScreenDictionary {
         lock.unlock()
     }
 
+    /// Copies a dictionary shipped inside this app bundle into Documents once.
+    /// Public builds have no bundled copy, so this is a no-op for them.
+    public static func installBundledDictionaryIfNeeded() {
+        guard let bundled = Bundle.main.url(forResource: "8bit", withExtension: "dat"),
+              let destination = defaultFileURL(),
+              !FileManager.default.fileExists(atPath: destination.path) else { return }
+        do {
+            let data = try Data(contentsOf: bundled)
+            guard data.count == expectedByteCount,
+                  SHA256.hash(data: data).map({ String(format: "%02x", $0) }).joined() == expectedSHA256 else { return }
+            try data.write(to: destination, options: .atomic)
+            use(destination)
+        } catch {
+            // Ignore an unreadable bundled copy; the Files picker still works.
+        }
+    }
+
     public static func load() throws -> Data {
         lock.lock()
         let url = selectedURL ?? defaultFileURL()

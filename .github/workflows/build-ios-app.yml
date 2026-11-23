@@ -5,6 +5,12 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      include_dictionary:
+        description: 'Nhúng 8bit.dat cho thiết bị này (dùng secret Actions)'
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   build:
@@ -32,6 +38,13 @@ jobs:
             -Xcxx -isysroot -Xcxx "$sdkroot"
 
       - name: Assemble unsigned app bundle
+        env:
+          INCLUDE_DICTIONARY: ${{ inputs.include_dictionary }}
+          DICT_PART1: ${{ secrets.IOSVIEWER_8BIT_PART1 }}
+          DICT_PART2: ${{ secrets.IOSVIEWER_8BIT_PART2 }}
+          DICT_PART3: ${{ secrets.IOSVIEWER_8BIT_PART3 }}
+          DICT_PART4: ${{ secrets.IOSVIEWER_8BIT_PART4 }}
+          DICT_PART5: ${{ secrets.IOSVIEWER_8BIT_PART5 }}
         run: |
           set -euo pipefail
           mkdir -p Payload/iOSViewer.app
@@ -48,6 +61,12 @@ jobs:
           fi
           cp "$app_binary" Payload/iOSViewer.app/iOSViewer
           cp iOSViewerApp-Info.plist Payload/iOSViewer.app/Info.plist
+          if [ "$INCLUDE_DICTIONARY" = "true" ]; then
+            printf '%s%s%s%s%s' "$DICT_PART1" "$DICT_PART2" "$DICT_PART3" "$DICT_PART4" "$DICT_PART5" \
+              | base64 -D > Payload/iOSViewer.app/8bit.dat
+            test "$(wc -c < Payload/iOSViewer.app/8bit.dat | tr -d ' ')" = "112640"
+            test "$(shasum -a 256 Payload/iOSViewer.app/8bit.dat | awk '{print $1}')" = "9aa45789d9ff9d329a623a685d57b67e33c777019de9ce1f273f21860e4bfe6b"
+          fi
           codesign --force --sign - Payload/iOSViewer.app
 
       - name: Build rootless DEB for jailbroken iOS
@@ -60,6 +79,9 @@ jobs:
           mkdir -p "$stage/DEBIAN" "$stage/var/jb/Applications/iOSViewer.app"
           cp Payload/iOSViewer.app/Info.plist "$stage/var/jb/Applications/iOSViewer.app/Info.plist"
           cp Payload/iOSViewer.app/iOSViewer "$stage/var/jb/Applications/iOSViewer.app/iOSViewer"
+          if [ -f Payload/iOSViewer.app/8bit.dat ]; then
+            cp Payload/iOSViewer.app/8bit.dat "$stage/var/jb/Applications/iOSViewer.app/8bit.dat"
+          fi
           cat > "$stage/DEBIAN/control" <<'EOF'
           Package: local.apelin.iosviewer
           Name: iOSViewer
@@ -85,7 +107,7 @@ jobs:
       - name: Upload packages
         uses: actions/upload-artifact@v4
         with:
-          name: iOSViewer-packages
+          name: ${{ inputs.include_dictionary && 'iOSViewer-packages-device' || 'iOSViewer-packages' }}
           path: |
             iOSViewer.ipa
             iOSViewer.deb
