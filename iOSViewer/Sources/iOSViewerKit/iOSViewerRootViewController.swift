@@ -578,16 +578,23 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
                                     attributes: .disabled) { _ in })
         } else {
             actions.append(UIAction(title: "Xoá danh sách máy", attributes: .destructive) { [weak self] _ in
-                guard let self else { return }
-                ConnectionStore.clear()
-                self.appendLog("Đã xoá danh sách máy đã lưu.")
-                self.refreshSavedServersMenu()
+                self?.clearSavedServers()
             })
         }
         savedServersButton.menu = UIMenu(children: actions)
         let count = items.count
         savedServersButton.setTitle(count == 0 ? "Máy đã lưu ▾" : "Máy đã lưu (\(count)) ▾",
                                     for: .normal)
+    }
+
+    /// Xoá danh sách rồi làm mới menu ở chu kỳ chạm tiếp theo. Đổi menu ngay
+    /// trong action đang thực thi từng làm app bị đóng đột ngột trên iOS.
+    private func clearSavedServers() {
+        ConnectionStore.clear()
+        appendLog("Đã xoá danh sách máy đã lưu.")
+        DispatchQueue.main.async { [weak self] in
+            self?.refreshSavedServersMenu()
+        }
     }
 
     @objc private func connectionsTapped() {
@@ -611,9 +618,7 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
         }
         if !items.isEmpty {
             sheet.addAction(UIAlertAction(title: "Xoá danh sách máy", style: .destructive) { [weak self] _ in
-                guard let self else { return }
-                ConnectionStore.clear()
-                self.appendLog("Đã xoá danh sách máy đã lưu.")
+                self?.clearSavedServers()
             })
         }
         sheet.addAction(UIAlertAction(title: "Hủy", style: .cancel))
@@ -906,6 +911,7 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
 
     /// iOS có thể ngừng phiên nền; quay lại app thì nối lại nếu trước đó đang kết nối.
     public func resumeAfterBackground() {
+        refreshSavedServersMenu()
         guard ViewerSettings.keepConnectionInBackground, sessionWasActive,
               !suppressAutoReconnect else { return }
         sessionWasActive = false

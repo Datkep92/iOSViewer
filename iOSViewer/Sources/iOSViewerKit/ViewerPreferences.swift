@@ -60,6 +60,7 @@ public enum ConnectionStore {
         if items.count > maximumCount { items = Array(items.prefix(maximumCount)) }
         guard let data = try? JSONEncoder().encode(items) else { return }
         defaults.set(data, forKey: storageKey)
+        defaults.synchronize()
     }
 
     /// Đổi tên gọi nhớ của một máy, giữ nguyên ID/mật khẩu và thời gian dùng.
@@ -75,16 +76,19 @@ public enum ConnectionStore {
                                        label: name, lastUsed: old.lastUsed)
         guard let data = try? JSONEncoder().encode(items) else { return }
         defaults.set(data, forKey: storageKey)
+        defaults.synchronize()
     }
 
     public static func remove(partnerID: String, password: String) {
         let items = all().filter { $0.partnerID != partnerID || $0.password != password }
         guard let data = try? JSONEncoder().encode(items) else { return }
         defaults.set(data, forKey: storageKey)
+        defaults.synchronize()
     }
 
     public static func clear() {
         defaults.removeObject(forKey: storageKey)
+        defaults.synchronize()
     }
 }
 
