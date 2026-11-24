@@ -415,8 +415,8 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
             self?.appendLog("Windows \(viewerID) đã kết nối vào iPhone.")
         }
         hostController.frameProvider = { [weak self] in
-            guard let self else { return ViewerHostController.placeholderFrame() }
-            let target = self.view.window ?? self.view
+            guard let self, let view = self.view else { return ViewerHostController.placeholderFrame() }
+            let target = view.window ?? view
             return ViewerHostController.frame(from: target)
         }
     }
