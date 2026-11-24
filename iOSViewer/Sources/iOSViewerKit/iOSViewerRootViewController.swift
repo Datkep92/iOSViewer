@@ -33,6 +33,8 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
     private let joystick = RemoteJoystickView(frame: CGRect(x: 0, y: 0, width: 120, height: 120))
     private var pendingCredentials: (id: String, password: String)?
     private var sessionWasActive = false
+    /// Bật sau khi người dùng bấm Ngắt: chặn mọi tự nối lại cho đến lần nối mới.
+    private var suppressAutoReconnect = false
     private let statusPill = UILabel()
     private let permissionPill = UILabel()
     private let headerStack = UIStackView()
@@ -43,7 +45,7 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
     private let fieldsStack = UIStackView()
     private let actionRow = UIStackView()
     private let contentStack = UIStackView()
-    private let toolbarScroll = UIScrollView()
+    private let toolbarGrid = UIStackView()
     private let screenContainer = UIView()
     private let screenView = RemoteScreenImageView(frame: .zero)
     private let logView = UITextView()
@@ -118,6 +120,14 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
             ViewerTheme.styleToolButton($0)
         }
         ViewerTheme.styleToolButton(savedServersButton)
+        [reconnectButton, requestControlButton, fullscreenButton, fitButton,
+         toolsButton, logButton, pointerModeButton, keepAliveButton].forEach { button in
+            button.titleLabel?.font = .systemFont(ofSize: 12, weight: .semibold)
+            button.titleLabel?.numberOfLines = 2
+            button.titleLabel?.textAlignment = .center
+            button.titleLabel?.adjustsFontSizeToFitWidth = true
+            button.titleLabel?.minimumScaleFactor = 0.75
+        }
         [idField, passwordField].forEach(ViewerTheme.styleField)
         ViewerTheme.stylePill(statusPill)
         ViewerTheme.stylePill(permissionPill)
@@ -247,15 +257,21 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
 
         let toolButtons = [reconnectButton, requestControlButton, fullscreenButton,
                            fitButton, toolsButton, logButton, pointerModeButton, keepAliveButton]
-        let toolStack = UIStackView(arrangedSubviews: toolButtons)
-        toolStack.axis = .horizontal
-        toolStack.spacing = 10
-        toolStack.alignment = .center
-        toolStack.translatesAutoresizingMaskIntoConstraints = false
-        toolbarScroll.addSubview(toolStack)
-        toolbarScroll.translatesAutoresizingMaskIntoConstraints = false
-        toolbarScroll.showsHorizontalScrollIndicator = false
-        toolbarScroll.accessibilityIdentifier = "remote-tool-bar"
+        toolbarGrid.axis = .vertical
+        toolbarGrid.spacing = 8
+        toolbarGrid.distribution = .fillEqually
+        toolbarGrid.translatesAutoresizingMaskIntoConstraints = false
+        toolbarGrid.accessibilityIdentifier = "remote-tool-bar"
+        // Hai hàng 4 nút: vừa màn hình dọc, không phải vuốt ngang để tìm nút.
+        let columnCount = 4
+        for start in stride(from: 0, to: toolButtons.count, by: columnCount) {
+            let end = min(start + columnCount, toolButtons.count)
+            let row = UIStackView(arrangedSubviews: Array(toolButtons[start..<end]))
+            row.axis = .horizontal
+            row.spacing = 8
+            row.distribution = .fillEqually
+            toolbarGrid.addArrangedSubview(row)
+        }
 
         logCard.addSubview(logView)
         logView.translatesAutoresizingMaskIntoConstraints = false
@@ -271,7 +287,7 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
         contentStack.translatesAutoresizingMaskIntoConstraints = false
         contentStack.addArrangedSubview(headerStack)
         contentStack.addArrangedSubview(connectCard)
-        contentStack.addArrangedSubview(toolbarScroll)
+        contentStack.addArrangedSubview(toolbarGrid)
         contentStack.addArrangedSubview(logCard)
 
         screenView.translatesAutoresizingMaskIntoConstraints = false
@@ -307,13 +323,7 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
             contentStack.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -16),
             leading, trailing, aspect, bottom,
             screenContainer.topAnchor.constraint(equalTo: contentStack.bottomAnchor, constant: 12),
-            logCard.heightAnchor.constraint(equalToConstant: 122),
-            toolStack.topAnchor.constraint(equalTo: toolbarScroll.topAnchor),
-            toolStack.bottomAnchor.constraint(equalTo: toolbarScroll.bottomAnchor),
-            toolStack.leadingAnchor.constraint(equalTo: toolbarScroll.leadingAnchor),
-            toolStack.trailingAnchor.constraint(equalTo: toolbarScroll.trailingAnchor),
-            toolStack.heightAnchor.constraint(equalToConstant: 40),
-            toolbarScroll.heightAnchor.constraint(equalToConstant: 40),
+            logCard.heightAnchor.constraint(equalToConstant: 100),
             screenView.topAnchor.constraint(equalTo: screenContainer.topAnchor),
             screenView.leadingAnchor.constraint(equalTo: screenContainer.leadingAnchor),
             screenView.trailingAnchor.constraint(equalTo: screenContainer.trailingAnchor),
@@ -331,9 +341,9 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
         logCard.isHidden = isFullscreen || !logVisible
         reconnectButton.isHidden = isFullscreen
         keepAliveButton.isHidden = isFullscreen
-        fullscreenButton.setTitle(isFullscreen ? "Thoát full" : "Toàn màn hình", for: .normal)
+        fullscreenButton.setTitle(isFullscreen ? "Thoát full" : "Full màn hình", for: .normal)
         fullscreenButton.accessibilityLabel = isFullscreen ? "Thoát toàn màn hình" : "Toàn màn hình"
-        logButton.setTitle(logVisible && !isFullscreen ? "Ẩn nhật ký" : "Hiện nhật ký", for: .normal)
+        logButton.setTitle(logVisible && !isFullscreen ? "Ẩn log" : "Hiện log", for: .normal)
         screenLeadingConstraint?.constant = isFullscreen ? 0 : 16
         screenTrailingConstraint?.constant = isFullscreen ? 0 : -16
         if isFullscreen {
@@ -476,10 +486,17 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
         let id = idField.text ?? ""
         let password = passwordField.text ?? ""
         pendingCredentials = (id: id, password: password)
+        suppressAutoReconnect = false
         Task { await controller.connect(partnerID: id, password: password) }
     }
 
     @objc private func disconnectTapped() {
+        // Ngắt theo ý người dùng là kết thúc phiên hẳn: xoá cờ nền và thông tin
+        // chờ lưu, dù tuỳ chọn «Giữ kết nối» đang Bật thì quay lại app cũng không nối lại.
+        sessionWasActive = false
+        pendingCredentials = nil
+        suppressAutoReconnect = true
+        appendLog("Đã ngắt kết nối — sẽ không tự nối lại.")
         Task {
             await controller.disconnect()
             await hostController.stop()
@@ -487,6 +504,7 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
     }
 
     @objc private func reconnectTapped() {
+        suppressAutoReconnect = false
         Task { await controller.reconnect() }
     }
 
@@ -533,9 +551,9 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
         let mode = ViewerSettings.pointerMode
         screenView.mode = mode
         joystick.isHidden = mode != .joystick
-        let title = "Chế độ: \(mode.title)"
+        let title = "Chế độ: \(mode.shortTitle)"
         pointerModeButton.setTitle(title, for: .normal)
-        pointerModeButton.accessibilityLabel = title
+        pointerModeButton.accessibilityLabel = "Chế độ chuột: \(mode.title)"
     }
 
     /// Dropdown ngay thanh nhập: chạm một máy là điền thông tin và kết nối luôn.
@@ -548,6 +566,11 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
                 self.idField.text = item.partnerID
                 self.passwordField.text = item.password
                 self.connectTapped()
+            })
+        }
+        if !items.isEmpty {
+            actions.append(UIAction(title: "Đổi tên máy…") { [weak self] _ in
+                self?.renameSavedConnection()
             })
         }
         if actions.isEmpty {
@@ -582,6 +605,11 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
             })
         }
         if !items.isEmpty {
+            sheet.addAction(UIAlertAction(title: "Đổi tên máy…", style: .default) { [weak self] _ in
+                self?.renameSavedConnection()
+            })
+        }
+        if !items.isEmpty {
             sheet.addAction(UIAlertAction(title: "Xoá danh sách máy", style: .destructive) { [weak self] _ in
                 guard let self else { return }
                 ConnectionStore.clear()
@@ -593,9 +621,45 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
         presentAfterDismiss(sheet)
     }
 
+    /// Đặt tên gọi nhớ cho máy đã lưu; tên hiện trong dropdown và bảng máy.
+    private func renameSavedConnection() {
+        let items = ConnectionStore.all()
+        guard !items.isEmpty else { return }
+        let picker = UIAlertController(title: "Đổi tên máy", message: "Chọn máy cần đặt tên.",
+                                       preferredStyle: .actionSheet)
+        for item in items.prefix(8) {
+            picker.addAction(UIAlertAction(title: "\(item.label) · \(item.partnerID)", style: .default) { [weak self] _ in
+                self?.promptRename(for: item)
+            })
+        }
+        picker.addAction(UIAlertAction(title: "Hủy", style: .cancel))
+        picker.popoverPresentationController?.sourceView = savedServersButton
+        presentAfterDismiss(picker)
+    }
+
+    private func promptRename(for item: SavedConnection) {
+        let alert = UIAlertController(title: "Đặt tên máy", message: "ID \(item.partnerID)",
+                                      preferredStyle: .alert)
+        alert.addTextField { field in
+            field.placeholder = "Tên gọi nhớ"
+            field.text = item.label
+            field.autocorrectionType = .no
+        }
+        alert.addAction(UIAlertAction(title: "Hủy", style: .cancel))
+        let nameField = alert.textFields?.first
+        alert.addAction(UIAlertAction(title: "Lưu", style: .default) { [weak self] _ in
+            guard let name = nameField?.text else { return }
+            ConnectionStore.rename(partnerID: item.partnerID, password: item.password, to: name)
+            self?.appendLog("Đã đổi tên máy \(item.partnerID).")
+            self?.refreshSavedServersMenu()
+        })
+        presentAfterDismiss(alert)
+    }
+
     @objc private func keepAliveTapped() {
         let enabled = !ViewerSettings.keepConnectionInBackground
         ViewerSettings.keepConnectionInBackground = enabled
+        if !enabled { sessionWasActive = false }
         applyKeepAliveSetting()
         appendLog(enabled ? "Giữ kết nối khi chuyển ứng dụng: Bật."
                           : "Giữ kết nối khi chuyển ứng dụng: Tắt.")
@@ -615,13 +679,16 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
         let sheet = UIAlertController(title: "Công cụ điều khiển", message: nil, preferredStyle: .actionSheet)
 
         sheet.addAction(UIAlertAction(title: "Kết nối lại", style: .default) { [weak self] _ in
-            Task { await self?.controller.reconnect() }
+            self?.reconnectTapped()
         })
         sheet.addAction(UIAlertAction(title: "Chế độ chuột", style: .default) { [weak self] _ in
             self?.pointerModeTapped()
         })
         sheet.addAction(UIAlertAction(title: "Danh sách máy đã lưu", style: .default) { [weak self] _ in
             self?.connectionsTapped()
+        })
+        sheet.addAction(UIAlertAction(title: "Đổi tên máy đã lưu", style: .default) { [weak self] _ in
+            self?.renameSavedConnection()
         })
         let keepTitle = ViewerSettings.keepConnectionInBackground
             ? "Tắt giữ kết nối khi chuyển app" : "Bật giữ kết nối khi chuyển app"
@@ -824,6 +891,10 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
     /// Gọi khi app đi vào nền: lưu máy đang dùng và xin thêm thời gian ở scene delegate.
     public func prepareForBackground() {
         guard ViewerSettings.keepConnectionInBackground else { return }
+        guard !suppressAutoReconnect else {
+            sessionWasActive = false
+            return
+        }
         sessionWasActive = currentState != .idle
         if currentState == .connected, let id = idField.text, !id.isEmpty {
             ConnectionStore.save(partnerID: id, password: passwordField.text ?? "")
@@ -835,7 +906,8 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
 
     /// iOS có thể ngừng phiên nền; quay lại app thì nối lại nếu trước đó đang kết nối.
     public func resumeAfterBackground() {
-        guard ViewerSettings.keepConnectionInBackground, sessionWasActive else { return }
+        guard ViewerSettings.keepConnectionInBackground, sessionWasActive,
+              !suppressAutoReconnect else { return }
         sessionWasActive = false
         guard currentState != .connected, currentState != .connecting else { return }
         appendLog("Quay lại app: đang nối lại phiên điều khiển.")

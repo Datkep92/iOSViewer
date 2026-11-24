@@ -111,7 +111,9 @@ for needle in ("UIViewController", "UITextField", "UIDocumentPickerViewControlle
     check(needle in uikit, f"Giao diện UIKit thiếu {needle}")
 check("fullscreen" in uikit.lower(), "Giao diện UIKit thiếu chế độ toàn màn hình (fullscreen)")
 for needle in ("remote-tool-pointer-mode", "remote-tool-connections", "remote-tool-keep-alive",
-               "ConnectionStore.save", "prepareForBackground", "resumeAfterBackground",
+               "ConnectionStore.save", "ConnectionStore.rename", "Đổi tên máy", "toolbarGrid",
+               "sessionWasActive = false", "pendingCredentials = nil", "suppressAutoReconnect",
+               "prepareForBackground", "resumeAfterBackground",
                "startIncomingHost", "showIncomingCredentials", "hostController",
                "await self.startIncomingHost()", "try await hostController.start()"):
     check(needle in uikit, f"Giao diện UIKit thiếu tính năng chế độ/danh sách máy/nền: {needle}")
@@ -131,7 +133,7 @@ for needle in ("RemoteJoystickView", "onVector", "UIPanGestureRecognizer", "remo
     check(needle in joystick, f"Cần điều khiển ảo thiếu {needle}")
 prefs = read(IOS / "Sources/iOSViewerKit/ViewerPreferences.swift")
 for needle in ("RemotePointerMode", "SavedConnection", "ConnectionStore", "UserDefaults",
-               "keepConnectionInBackground"):
+               "keepConnectionInBackground", "static func rename", "shortTitle"):
     check(needle in prefs, f"Lưu máy/chế độ thiếu {needle}")
 scene = read(IOS / "Sources/iOSViewerKit/iOSViewerSceneDelegate.swift")
 for needle in ("beginBackgroundTask", "sceneDidEnterBackground", "sceneWillEnterForeground",

@@ -6,6 +6,14 @@ public enum RemotePointerMode: String, CaseIterable, Sendable {
     case trackpad
     case joystick
 
+    public var shortTitle: String {
+        switch self {
+        case .absolute: return "Chạm"
+        case .trackpad: return "Bàn rê"
+        case .joystick: return "Cần"
+        }
+    }
+
     public var title: String {
         switch self {
         case .absolute: return "Chạm trực tiếp"
@@ -50,6 +58,21 @@ public enum ConnectionStore {
         items.insert(SavedConnection(partnerID: id, password: password,
                                      label: label ?? "Máy \(id)"), at: 0)
         if items.count > maximumCount { items = Array(items.prefix(maximumCount)) }
+        guard let data = try? JSONEncoder().encode(items) else { return }
+        defaults.set(data, forKey: storageKey)
+    }
+
+    /// Đổi tên gọi nhớ của một máy, giữ nguyên ID/mật khẩu và thời gian dùng.
+    public static func rename(partnerID: String, password: String, to label: String) {
+        let name = label.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return }
+        var items = all()
+        guard let index = items.firstIndex(where: {
+            $0.partnerID == partnerID && $0.password == password
+        }) else { return }
+        let old = items[index]
+        items[index] = SavedConnection(partnerID: old.partnerID, password: old.password,
+                                       label: name, lastUsed: old.lastUsed)
         guard let data = try? JSONEncoder().encode(items) else { return }
         defaults.set(data, forKey: storageKey)
     }
