@@ -21,18 +21,15 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
     private let disconnectButton = UIButton(type: .system)
     private let reconnectButton = UIButton(type: .system)
     private let dictionaryButton = UIButton(type: .system)
-    private let toolConnectButton = UIButton(type: .system)
-    private let toolDisconnectButton = UIButton(type: .system)
     private let requestControlButton = UIButton(type: .system)
     private let fullscreenButton = UIButton(type: .system)
-    private let zoomInButton = UIButton(type: .system)
-    private let zoomOutButton = UIButton(type: .system)
     private let fitButton = UIButton(type: .system)
     private let toolsButton = UIButton(type: .system)
     private let logButton = UIButton(type: .system)
     private let pointerModeButton = UIButton(type: .system)
-    private let connectionsButton = UIButton(type: .system)
     private let keepAliveButton = UIButton(type: .system)
+    /// Danh sách máy đã lưu dạng dropdown ngay trong thanh nhập nhanh.
+    private let savedServersButton = UIButton(type: .system)
     private let joystick = RemoteJoystickView(frame: CGRect(x: 0, y: 0, width: 120, height: 120))
     private var pendingCredentials: (id: String, password: String)?
     private var sessionWasActive = false
@@ -116,11 +113,11 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
     private func applyTheme() {
         [connectButton, dictionaryButton].forEach { ViewerTheme.styleButton($0, primary: $0 === connectButton) }
         [disconnectButton, reconnectButton].forEach { ViewerTheme.styleButton($0) }
-        [toolConnectButton, toolDisconnectButton, requestControlButton, fullscreenButton,
-         zoomInButton, zoomOutButton, fitButton, toolsButton, logButton,
-         pointerModeButton, connectionsButton, keepAliveButton].forEach {
+        [requestControlButton, fullscreenButton, fitButton, toolsButton,
+         logButton, pointerModeButton, keepAliveButton].forEach {
             ViewerTheme.styleToolButton($0)
         }
+        ViewerTheme.styleToolButton(savedServersButton)
         [idField, passwordField].forEach(ViewerTheme.styleField)
         ViewerTheme.stylePill(statusPill)
         ViewerTheme.stylePill(permissionPill)
@@ -182,26 +179,23 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
         configureButton(dictionaryButton, title: "Chọn từ điển", identifier: "choose-dictionary",
                         action: #selector(chooseDictionaryTapped))
 
-        configureButton(toolConnectButton, title: "Kết nối", identifier: "remote-tool-connect",
-                        action: #selector(connectTapped))
-        configureButton(toolDisconnectButton, title: "Ngắt", identifier: "remote-tool-disconnect",
-                        action: #selector(disconnectTapped))
-        toolDisconnectButton.isEnabled = false
+        savedServersButton.setTitle("Máy đã lưu ▾", for: .normal)
+        savedServersButton.accessibilityIdentifier = "remote-tool-connections"
+        savedServersButton.accessibilityLabel = "Danh sách máy đã lưu"
+        savedServersButton.showsMenuAsPrimaryAction = true
+        savedServersButton.contentHorizontalAlignment = .left
+        savedServersButton.titleLabel?.font = .systemFont(ofSize: 13, weight: .semibold)
+        refreshSavedServersMenu()
+
         configureButton(requestControlButton, title: "Xin quyền", identifier: "remote-tool-request-control",
                         action: #selector(requestControlTapped))
         configureButton(fullscreenButton, title: "Toàn màn hình", identifier: "remote-tool-fullscreen",
                         action: #selector(fullscreenTapped))
-        configureButton(zoomInButton, title: "zoom +", identifier: "remote-tool-zoom-in",
-                        action: #selector(zoomInTapped))
-        configureButton(zoomOutButton, title: "zoom −", identifier: "remote-tool-zoom-out",
-                        action: #selector(zoomOutTapped))
         configureButton(fitButton, title: "Khớp", identifier: "remote-tool-fit", action: #selector(fitTapped))
         configureButton(toolsButton, title: "Công cụ", identifier: "remote-tool-tools", action: #selector(toolsTapped))
         configureButton(logButton, title: "Ẩn nhật ký", identifier: "remote-tool-log", action: #selector(logTapped))
         configureButton(pointerModeButton, title: "Chế độ: Chạm trực tiếp",
                         identifier: "remote-tool-pointer-mode", action: #selector(pointerModeTapped))
-        configureButton(connectionsButton, title: "Máy đã lưu",
-                        identifier: "remote-tool-connections", action: #selector(connectionsTapped))
         configureButton(keepAliveButton, title: "Giữ kết nối: Bật",
                         identifier: "remote-tool-keep-alive", action: #selector(keepAliveTapped))
 
@@ -225,6 +219,7 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
 
         fieldsStack.axis = .vertical
         fieldsStack.spacing = 10
+        fieldsStack.addArrangedSubview(savedServersButton)
         fieldsStack.addArrangedSubview(idField)
         fieldsStack.addArrangedSubview(passwordField)
 
@@ -246,12 +241,12 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
             connectInner.trailingAnchor.constraint(equalTo: connectCard.trailingAnchor, constant: -14),
             connectInner.bottomAnchor.constraint(equalTo: connectCard.bottomAnchor, constant: -14),
             idField.heightAnchor.constraint(equalToConstant: 42),
-            passwordField.heightAnchor.constraint(equalToConstant: 42)
+            passwordField.heightAnchor.constraint(equalToConstant: 42),
+            savedServersButton.heightAnchor.constraint(equalToConstant: 34)
         ])
 
-        let toolButtons = [toolConnectButton, toolDisconnectButton, reconnectButton, requestControlButton,
-                           fullscreenButton, zoomInButton, zoomOutButton, fitButton, toolsButton, logButton,
-                           pointerModeButton, connectionsButton, keepAliveButton]
+        let toolButtons = [reconnectButton, requestControlButton, fullscreenButton,
+                           fitButton, toolsButton, logButton, pointerModeButton, keepAliveButton]
         let toolStack = UIStackView(arrangedSubviews: toolButtons)
         toolStack.axis = .horizontal
         toolStack.spacing = 10
@@ -334,10 +329,7 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
         headerStack.isHidden = isFullscreen
         connectCard.isHidden = isFullscreen
         logCard.isHidden = isFullscreen || !logVisible
-        toolConnectButton.isHidden = isFullscreen
-        toolDisconnectButton.isHidden = isFullscreen
         reconnectButton.isHidden = isFullscreen
-        connectionsButton.isHidden = isFullscreen
         keepAliveButton.isHidden = isFullscreen
         fullscreenButton.setTitle(isFullscreen ? "Thoát full" : "Toàn màn hình", for: .normal)
         fullscreenButton.accessibilityLabel = isFullscreen ? "Thoát toàn màn hình" : "Toàn màn hình"
@@ -389,15 +381,14 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
             let active = state == .connected
             let busy = state != .idle
             self.connectButton.isEnabled = !busy
-            self.toolConnectButton.isEnabled = !busy
             self.disconnectButton.isEnabled = busy
-            self.toolDisconnectButton.isEnabled = busy
             self.reconnectButton.isEnabled = state != .idle
             self.idField.isEnabled = !busy
             self.passwordField.isEnabled = !busy
             if state == .connected, let credentials = self.pendingCredentials {
                 ConnectionStore.save(partnerID: credentials.id, password: credentials.password)
                 self.appendLog("Đã lưu máy \(credentials.id) vào danh sách kết nối.")
+                self.refreshSavedServersMenu()
                 self.pendingCredentials = nil
             }
         }
@@ -425,7 +416,8 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
         }
         hostController.frameProvider = { [weak self] in
             guard let self else { return ViewerHostController.placeholderFrame() }
-            return ViewerHostController.frame(from: self.view)
+            let target = self.view.window ?? self.view
+            return ViewerHostController.frame(from: target)
         }
     }
 
@@ -507,14 +499,6 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
         applyLayoutMode()
     }
 
-    @objc private func zoomInTapped() {
-        screenView.zoomIn()
-    }
-
-    @objc private func zoomOutTapped() {
-        screenView.zoomOut()
-    }
-
     @objc private func fitTapped() {
         screenView.resetZoom()
     }
@@ -554,6 +538,35 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
         pointerModeButton.accessibilityLabel = title
     }
 
+    /// Dropdown ngay thanh nhập: chạm một máy là điền thông tin và kết nối luôn.
+    private func refreshSavedServersMenu() {
+        let items = ConnectionStore.all()
+        var actions: [UIAction] = []
+        for item in items.prefix(8) {
+            actions.append(UIAction(title: "\(item.label) · \(item.partnerID)") { [weak self] _ in
+                guard let self else { return }
+                self.idField.text = item.partnerID
+                self.passwordField.text = item.password
+                self.connectTapped()
+            })
+        }
+        if actions.isEmpty {
+            actions.append(UIAction(title: "Chưa có máy nào — hãy kết nối một lần",
+                                    attributes: .disabled) { _ in })
+        } else {
+            actions.append(UIAction(title: "Xoá danh sách máy", attributes: .destructive) { [weak self] _ in
+                guard let self else { return }
+                ConnectionStore.clear()
+                self.appendLog("Đã xoá danh sách máy đã lưu.")
+                self.refreshSavedServersMenu()
+            })
+        }
+        savedServersButton.menu = UIMenu(children: actions)
+        let count = items.count
+        savedServersButton.setTitle(count == 0 ? "Máy đã lưu ▾" : "Máy đã lưu (\(count)) ▾",
+                                    for: .normal)
+    }
+
     @objc private func connectionsTapped() {
         let items = ConnectionStore.all()
         let sheet = UIAlertController(title: "Máy đã lưu",
@@ -576,7 +589,7 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
             })
         }
         sheet.addAction(UIAlertAction(title: "Hủy", style: .cancel))
-        sheet.popoverPresentationController?.sourceView = connectionsButton
+        sheet.popoverPresentationController?.sourceView = savedServersButton
         presentAfterDismiss(sheet)
     }
 

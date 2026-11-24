@@ -18,11 +18,15 @@ final class ViewerHostController {
     private var events: Task<Void, Never>?
     private var running = false
     private var pendingRequest: UltraViewerHostSession.IncomingRequest?
+    private var lastGoodFrame: HostedScreenFrame?
+    private var didReportDarkCapture = false
 
     var isRunning: Bool { running }
 
     func start() async throws {
         guard !running else { return }
+        lastGoodFrame = nil
+        didReportDarkCapture = false
         let registration = try IOSRegistrationProfile.loadOrCreate()
         let stream = try await host.start(configuration: .init(
             registration: registration,
@@ -71,7 +75,7 @@ final class ViewerHostController {
         case let .connected(request):
             onConnected?(request.viewerID)
         case let .captureRequested(ticket):
-            let frame = frameProvider?() ?? Self.placeholderFrame()
+            let frame = resolvedFrame()
             do {
                 try await host.submitFrame(frame, ticket: ticket)
             } catch {
@@ -90,7 +94,7 @@ final class ViewerHostController {
     func approvePending() async {
         guard let request = pendingRequest else { return }
         pendingRequest = nil
-        let frame = frameProvider?() ?? Self.placeholderFrame()
+        let frame = resolvedFrame()
         do {
             try await host.approve(request.id, firstFrame: frame, allowsControl: true)
             onStatus?("Đã chấp nhận Windows \(request.viewerID) điều khiển iPhone.")
@@ -108,18 +112,59 @@ final class ViewerHostController {
 
     // MARK: - Ảnh gửi cho Windows
 
+    /// Khi app đang ở nền, `drawHierarchy` có thể trả ảnh đen. Đổi sang ảnh tốt
+    /// gần nhất (hoặc ảnh mẫu) để Windows không thấy màn hình đen.
+    private func resolvedFrame() -> HostedScreenFrame {
+        let frame = frameProvider?() ?? Self.placeholderFrame()
+        if !Self.isMostlyBlack(frame) {
+            lastGoodFrame = frame
+            return frame
+        }
+        if !didReportDarkCapture {
+            didReportDarkCapture = true
+            onStatus?("Không chụp được giao diện lúc này; dùng ảnh gần nhất để Windows không thấy màn hình đen.")
+        }
+        return lastGoodFrame ?? Self.placeholderFrame()
+    }
+
+    /// Đếm nhanh các điểm sáng trên dữ liệu RGB555 đã đóng gói.
+    private static func isMostlyBlack(_ frame: HostedScreenFrame) -> Bool {
+        let data = frame.rgb555BottomUp
+        guard data.count >= 2 else { return true }
+        var lit = 0
+        var sampled = 0
+        var index = 0
+        while index + 1 < data.count {
+            let value = UInt16(data[index]) | (UInt16(data[index + 1]) << 8)
+            if value & 0x7FFF != 0 { lit += 1 }
+            sampled += 1
+            index += 32
+        }
+        return sampled == 0 || lit * 100 < sampled * 2
+    }
+
     /// Chụp giao diện hiện tại của app, thu nhỏ để gửi nhanh qua relay.
     static func frame(from view: UIView) -> HostedScreenFrame {
         let width: Int = 480
         let height = max(160, min(960, Int(480 * view.bounds.height / max(view.bounds.width, 1))))
         let size = CGSize(width: width, height: height)
         let format = UIGraphicsImageRendererFormat()
-        format.opaque = true
+        format.opaque = false
         format.scale = 1
         let image = UIGraphicsImageRenderer(size: size, format: format).image { renderer in
-            UIColor.black.setFill()
+            // Nền có hoa văn sáng: dù không chụp được giao diện (app ở nền), Windows
+            // vẫn nhận được ảnh có nội dung thay vì một khung đen đặc.
+            UIColor(red: 0.14, green: 0.17, blue: 0.22, alpha: 1).setFill()
             renderer.fill(CGRect(origin: .zero, size: size))
-            view.drawHierarchy(in: CGRect(origin: .zero, size: size), afterScreenUpdates: false)
+            UIColor.white.withAlphaComponent(0.10).setFill()
+            for x in stride(from: 0, to: Int(size.width), by: 40) {
+                for y in stride(from: 0, to: Int(size.height), by: 40) {
+                    if (x / 40 + y / 40) % 2 == 0 {
+                        renderer.fill(CGRect(x: x, y: y, width: 40, height: 40))
+                    }
+                }
+            }
+            view.drawHierarchy(in: CGRect(origin: .zero, size: size), afterScreenUpdates: true)
         }
         return frame(from: image)
     }

@@ -26,11 +26,12 @@ public final class RemoteScreenImageView: UIImageView {
 
     private var virtualCursor: CGPoint?
     private var lastTrackpadTranslation: CGPoint = .zero
-    private var baseZoom: CGFloat = 1
-    private var baseCenter = CGPoint.zero
-    private var pinchAnchor: CGPoint?
+    /// Độ dời của tâm ảnh đã phóng to (toạ độ màn hình, chưa nhân tỉ lệ).
+    private var contentOffset = CGPoint.zero
+    private var pinchAnchor: CGPoint?     // điểm trong bounds nằm dưới hai ngón lúc bắt đầu chổm
     private var pinchStartScale: CGFloat = 1
-    private var pinchStartCenter = CGPoint.zero
+    private var pinchStartOffset = CGPoint.zero
+    private var isPinching = false
     private var lastZoomPanTranslation: CGPoint = .zero
     private static let pointsPerWheelNotch: CGFloat = 36
     private static let minimumZoom: CGFloat = 1
@@ -216,6 +217,7 @@ public final class RemoteScreenImageView: UIImageView {
     }
 
     @objc private func handleScroll(_ recognizer: UIPanGestureRecognizer) {
+        guard !isPinching else { return }
         if zoomScale > 1.01 {
             handleZoomPan(recognizer)
             return
@@ -234,19 +236,23 @@ public final class RemoteScreenImageView: UIImageView {
         }
     }
 
-    /// Khi đã phóng to, vuốt hai ngón di chuyển khung thay vì gửi lệnh cuộn.
+    /// Khi đã phóng to, vuốt kéo ảnh đi theo hướng ngón tay thay vì gửi lệnh cuộn.
     private func handleZoomPan(_ recognizer: UIPanGestureRecognizer) {
+        guard !isPinching else { return }
         switch recognizer.state {
         case .began:
-            lastZoomPanTranslation = recognizer.translation(in: self)
+            lastZoomPanTranslation = .zero
+            recognizer.setTranslation(.zero, in: self)
         case .changed:
             let translation = recognizer.translation(in: self)
+            // location(in:) trả toạ độ bounds sau khi đảo transform, nên nhân lại
+            // theo tỉ lệ để được độ dời thật trên màn hình; cộng vào offset để ảnh đi cùng ngón.
             let delta = CGPoint(x: (translation.x - lastZoomPanTranslation.x) * zoomScale,
                                 y: (translation.y - lastZoomPanTranslation.y) * zoomScale)
             lastZoomPanTranslation = translation
-            baseCenter = clampOffset(CGPoint(x: baseCenter.x + delta.x,
-                                             y: baseCenter.y + delta.y),
-                                     scale: zoomScale)
+            contentOffset = clampOffset(CGPoint(x: contentOffset.x + delta.x,
+                                                y: contentOffset.y + delta.y),
+                                        scale: zoomScale)
             applyTransform()
         default:
             lastZoomPanTranslation = .zero
@@ -256,20 +262,20 @@ public final class RemoteScreenImageView: UIImageView {
     @objc private func handlePinch(_ recognizer: UIPinchGestureRecognizer) {
         switch recognizer.state {
         case .began:
-            baseZoom = zoomScale
+            isPinching = true
             pinchStartScale = zoomScale
-            pinchStartCenter = baseCenter
-            // Điểm trả về nằm trong toạ độ nội dung đã bị biến đổi; đổi sang
-            // toạ độ khung nhìn để neo phóng to đúng chỗ người dùng chạm.
-            let local = recognizer.location(in: self)
-            let center = CGPoint(x: bounds.midX, y: bounds.midY)
-            pinchAnchor = CGPoint(x: center.x + zoomScale * (local.x - center.x) + baseCenter.x,
-                                  y: center.y + zoomScale * (local.y - center.y) + baseCenter.y)
+            pinchStartOffset = contentOffset
+            // location(in:) là điểm trong bounds nằm dưới hai ngón; giữ đúng điểm
+            // này cố định trên màn hình trong suốt cú chổm.
+            pinchAnchor = recognizer.location(in: self)
         case .changed:
             guard let anchor = pinchAnchor else { return }
-            let next = min(max(baseZoom * recognizer.scale, Self.minimumZoom), Self.maximumZoom)
-            applyZoom(next, fromScale: pinchStartScale, fromCenter: pinchStartCenter, anchor: anchor)
+            let next = min(max(pinchStartScale * recognizer.scale,
+                               Self.minimumZoom), Self.maximumZoom)
+            applyZoom(next, fromScale: pinchStartScale,
+                      fromOffset: pinchStartOffset, anchorBounds: anchor)
         default:
+            isPinching = false
             pinchAnchor = nil
         }
     }
@@ -278,26 +284,26 @@ public final class RemoteScreenImageView: UIImageView {
                              at focusPoint: CGPoint? = nil) {
         let next = min(max(scale, Self.minimumZoom), Self.maximumZoom)
         let center = CGPoint(x: bounds.midX, y: bounds.midY)
-        applyZoom(next, fromScale: zoomScale, fromCenter: baseCenter,
-                  anchor: focusPoint ?? center)
+        applyZoom(next, fromScale: zoomScale, fromOffset: contentOffset,
+                  anchorBounds: focusPoint ?? center)
     }
 
-    /// Giữ `anchor` (trong toạ độ khung nhìn, chưa xoay theo transform) cố định
-    /// khi đổi tỉ lệ từ `fromScale` sang `next`, kể cả đã kéo khung trước đó.
+    /// Với ánh xạ `p_super = center + s·(p - center) + offset`, muốn điểm
+    /// `anchorBounds` đứng yên thì offset mới = offset cũ + (s cũ - s mới)·(anchor - center).
     private func applyZoom(_ next: CGFloat, fromScale: CGFloat,
-                           fromCenter: CGPoint, anchor: CGPoint) {
+                           fromOffset: CGPoint, anchorBounds: CGPoint) {
         if next <= Self.minimumZoom {
             zoomScale = Self.minimumZoom
-            baseCenter = .zero
+            contentOffset = .zero
             transform = .identity
             return
         }
         let center = CGPoint(x: bounds.midX, y: bounds.midY)
-        let ratio = next / max(fromScale, 0.0001)
-        let offset = CGPoint(x: (anchor.x - center.x) * (1 - ratio) + fromCenter.x * ratio,
-                             y: (anchor.y - center.y) * (1 - ratio) + fromCenter.y * ratio)
+        let change = fromScale - next
+        let offset = CGPoint(x: fromOffset.x + change * (anchorBounds.x - center.x),
+                             y: fromOffset.y + change * (anchorBounds.y - center.y))
         zoomScale = next
-        baseCenter = clampOffset(offset, scale: next)
+        contentOffset = clampOffset(offset, scale: next)
         applyTransform()
     }
 
@@ -320,28 +326,10 @@ public final class RemoteScreenImageView: UIImageView {
                        y: min(max(offset.y, -maxY), maxY))
     }
 
+    /// Ma trận tường minh `M·v = s·v + offset`. Không kẹp lại lần thứ hai ở đây:
+    /// mọi thay đổi đã đi qua `clampOffset`, nên chiều kéo không bị đảo.
     private func applyTransform() {
-        var transform = CGAffineTransform.identity
-            .translatedBy(x: baseCenter.x, y: baseCenter.y)
-            .scaledBy(x: zoomScale, y: zoomScale)
-        if zoomScale > 1 {
-            transform = clampTransform(transform)
-        }
-        self.transform = transform
-    }
-
-    private func clampTransform(_ transform: CGAffineTransform) -> CGAffineTransform {
-        let topLeft = CGPoint(x: 0, y: 0).applying(transform)
-        let topRight = CGPoint(x: bounds.width, y: 0).applying(transform)
-        let bottomLeft = CGPoint(x: 0, y: bounds.height).applying(transform)
-        let minX = min(topLeft.x, topRight.x, bottomLeft.x)
-        let maxX = max(topLeft.x, topRight.x, bottomLeft.x)
-        let minY = min(topLeft.y, topRight.y, bottomLeft.y)
-        let maxY = max(topLeft.y, topRight.y, bottomLeft.y)
-        var dx: CGFloat = 0
-        var dy: CGFloat = 0
-        if minX > 0 { dx = -minX } else if maxX < bounds.width { dx = bounds.width - maxX }
-        if minY > 0 { dy = -minY } else if maxY < bounds.height { dy = bounds.height - maxY }
-        return transform.translatedBy(x: dx, y: dy)
+        transform = CGAffineTransform(a: zoomScale, b: 0, c: 0, d: zoomScale,
+                                      tx: contentOffset.x, ty: contentOffset.y)
     }
 }
