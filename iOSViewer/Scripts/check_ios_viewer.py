@@ -53,6 +53,9 @@ for needle in ("CFBundleIcons", "CFBundleIconFiles", "AppIcon60x60@2x.png"):
     check(needle in plist, f"Info.plist chưa khai báo icon app: {needle}")
 for needle in ("UIBackgroundModes", "<string>voip</string>"):
     check(needle in plist, f"Info.plist chưa khai báo giữ phiên nền: {needle}")
+for needle in ("<key>CFBundleName</key>", "<key>CFBundleDisplayName</key>"):
+    check(needle in plist, f"Info.plist thiếu khóa tên app: {needle}")
+check("<string>CNViewer</string>" in plist, "Info.plist chưa đổi tên hiển thị thành CNViewer")
 workflow = read(ROOT / ".github/workflows/build-ios-app.yml")
 for needle in ("make_app_icon.py", "AppIcon*.png"):
     check(needle in workflow, f"Workflow chưa sinh/copy icon: {needle}")
@@ -85,6 +88,7 @@ required = [
     "Sources/iOSViewerKit/RemoteScreenImageView.swift",
     "Sources/iOSViewerKit/RemoteJoystickView.swift",
     "Sources/iOSViewerKit/ViewerPreferences.swift",
+    "Sources/iOSViewerKit/PasteableTextField.swift",
     "Sources/iOSViewerKit/iOSViewerRootViewController.swift",
     "Sources/iOSViewerKit/iOSViewerSceneDelegate.swift",
     "Sources/RemoteControlKit/RemoteControlClient.swift",
@@ -118,6 +122,17 @@ for needle in ("remote-tool-pointer-mode", "remote-tool-connections", "remote-to
                "startIncomingHost", "showIncomingCredentials", "hostController",
                "await self.startIncomingHost()", "try await hostController.start()"):
     check(needle in uikit, f"Giao diện UIKit thiếu tính năng chế độ/danh sách máy/nền: {needle}")
+for needle in ("UIImage(systemName: icon)", "numberOfLines = 1", "imageEdgeInsets",
+               "accessibilityLabel = \"Toàn màn hình\"", "accessibilityLabel = \"Chế độ chuột:"):
+    check(needle in uikit, f"Giao diện UIKit thiếu nút biểu tượng/nhãn một dòng: {needle}")
+pasteable = read(IOS / "Sources/iOSViewerKit/PasteableTextField.swift")
+for needle in ("PasteableTextField", "canPerformAction", "UIResponderStandardEditActions.paste",
+               "UIResponderStandardEditActions.copy"):
+    check(needle in pasteable, f"Ô nhập thiếu hỗ trợ dán/sao chép: {needle}")
+for needle in ("PasteableTextField()", "inputAccessoryView", "UIPasteboard.general.string",
+               "field-paste", "field-copy", "insertText", "textFieldDidBeginEditing",
+               "title = \"CNViewer\"", "headerTitle.text = \"CNViewer\""):
+    check(needle in uikit, f"Giao diện UIKit thiếu dán/copy hoặc tên CNViewer: {needle}")
 theme = read(IOS / "Sources/iOSViewerKit/iOSViewerTheme.swift")
 for needle in ("ViewerTheme", "styleCard", "styleButton", "stylePill"):
     check(needle in theme, f"Theme giao diện thiếu {needle}")

@@ -1,4 +1,6 @@
-# iOSViewer — UltraViewer trên iPhone (bản port iOS 16)
+# CNViewer — UltraViewer trên iPhone (bản port iOS 16)
+
+Tên hiển thị của app là CNViewer; mã nguồn và định danh gói vẫn giữ tên iOSViewer để cài đè bản cũ không mất dữ liệu.
 
 Đây là bản chuyển mã nguồn mở của [MacViewer](https://github.com/DeanOpen/MacViewer) sang iOS 16 bằng SwiftPM và UIKit. Phần giao thức được giữ lại gần như nguyên vẹn; phần macOS (AppKit) được thay bằng màn hình cảm ứng. Đây không phải sản phẩm chính thức của UltraViewer.
 

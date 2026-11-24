@@ -5,9 +5,9 @@
     <key>CFBundleIdentifier</key>
     <string>local.apelin.iOSViewer</string>
     <key>CFBundleName</key>
-    <string>iOSViewer</string>
+    <string>CNViewer</string>
     <key>CFBundleDisplayName</key>
-    <string>iOSViewer</string>
+    <string>CNViewer</string>
     <key>CFBundleExecutable</key>
     <string>iOSViewer</string>
     <key>CFBundleIconFile</key>

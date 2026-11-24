@@ -15,8 +15,27 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
 
     private let controller = ViewerSessionController()
     private let hostController = ViewerHostController()
-    private let idField = UITextField()
-    private let passwordField = UITextField()
+    private let idField = PasteableTextField()
+    private let passwordField = PasteableTextField()
+    /// Nút Dán/Sao chép nằm ngay trên bàn phím, dùng biểu tượng để mỗi nút chỉ chiếm một dòng.
+    private lazy var fieldAccessory: UIToolbar = {
+        let bar = UIToolbar(frame: CGRect(x: 0, y: 0, width: 320, height: 44))
+        bar.sizeToFit()
+        let paste = UIBarButtonItem(image: UIImage(systemName: "doc.on.clipboard"),
+                                    style: .plain, target: self, action: #selector(pasteTapped))
+        paste.accessibilityIdentifier = "field-paste"
+        paste.accessibilityLabel = "Dán"
+        let copy = UIBarButtonItem(image: UIImage(systemName: "doc.on.doc"),
+                                   style: .plain, target: self, action: #selector(copyTapped))
+        copy.accessibilityIdentifier = "field-copy"
+        copy.accessibilityLabel = "Sao chép"
+        let done = UIBarButtonItem(barButtonSystemItem: .done, target: self,
+                                   action: #selector(fieldDoneTapped))
+        done.accessibilityLabel = "Xong"
+        bar.items = [paste, copy, .flexibleSpace(), done]
+        return bar
+    }()
+    private weak var activeField: UITextField?
     private let connectButton = UIButton(type: .system)
     private let disconnectButton = UIButton(type: .system)
     private let reconnectButton = UIButton(type: .system)
@@ -67,7 +86,7 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
 
     public override func viewDidLoad() {
         super.viewDidLoad()
-        title = "iOSViewer"
+        title = "CNViewer"
         view.backgroundColor = ViewerTheme.background
         timeFormatter.timeStyle = .medium
         timeFormatter.dateStyle = .none
@@ -122,11 +141,13 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
         ViewerTheme.styleToolButton(savedServersButton)
         [reconnectButton, requestControlButton, fullscreenButton, fitButton,
          toolsButton, logButton, pointerModeButton, keepAliveButton].forEach { button in
-            button.titleLabel?.font = .systemFont(ofSize: 12, weight: .semibold)
-            button.titleLabel?.numberOfLines = 2
+            button.titleLabel?.font = .systemFont(ofSize: 11, weight: .semibold)
+            button.titleLabel?.numberOfLines = 1
+            button.titleLabel?.lineBreakMode = .byTruncatingTail
             button.titleLabel?.textAlignment = .center
             button.titleLabel?.adjustsFontSizeToFitWidth = true
-            button.titleLabel?.minimumScaleFactor = 0.75
+            button.titleLabel?.minimumScaleFactor = 0.8
+            button.contentEdgeInsets = UIEdgeInsets(top: 7, left: 6, bottom: 7, right: 6)
         }
         [idField, passwordField].forEach(ViewerTheme.styleField)
         ViewerTheme.stylePill(statusPill)
@@ -152,15 +173,25 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
     // MARK: - Layout
 
     private func configureButton(_ button: UIButton, title: String,
-                                 identifier: String, action: Selector) {
+                                 identifier: String, action: Selector, icon: String? = nil) {
         button.setTitle(title, for: .normal)
         button.accessibilityIdentifier = identifier
         button.accessibilityLabel = title
         button.addTarget(self, action: action, for: .touchUpInside)
+        button.tintColor = ViewerTheme.text
+        button.titleLabel?.numberOfLines = 1
+        button.titleLabel?.lineBreakMode = .byTruncatingTail
+        button.titleLabel?.adjustsFontSizeToFitWidth = true
+        button.titleLabel?.minimumScaleFactor = 0.8
+        if let icon {
+            button.setImage(UIImage(systemName: icon), for: .normal)
+            button.imageEdgeInsets = UIEdgeInsets(top: 0, left: -2, bottom: 0, right: 2)
+            button.titleEdgeInsets = UIEdgeInsets(top: 0, left: 2, bottom: 0, right: -2)
+        }
     }
 
     private func buildLayout() {
-        headerTitle.text = "iOSViewer"
+        headerTitle.text = "CNViewer"
         headerSubtitle.text = "Điều khiển máy Windows từ iPhone"
         statusPill.accessibilityIdentifier = "status-pill"
         permissionPill.accessibilityIdentifier = "permission-pill"
@@ -171,6 +202,7 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
         idField.autocorrectionType = .no
         idField.returnKeyType = .next
         idField.delegate = self
+        idField.inputAccessoryView = fieldAccessory
         idField.accessibilityIdentifier = "partner-id"
 
         passwordField.placeholder = "Mật khẩu phiên"
@@ -178,36 +210,46 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
         passwordField.isSecureTextEntry = true
         passwordField.returnKeyType = .go
         passwordField.delegate = self
+        passwordField.inputAccessoryView = fieldAccessory
         passwordField.accessibilityIdentifier = "session-password"
 
-        configureButton(connectButton, title: "Kết nối", identifier: "connect", action: #selector(connectTapped))
-        configureButton(disconnectButton, title: "Ngắt", identifier: "disconnect", action: #selector(disconnectTapped))
-        configureButton(reconnectButton, title: "Kết nối lại", identifier: "remote-tool-reconnect",
-                        action: #selector(reconnectTapped))
+        configureButton(connectButton, title: "Kết nối", identifier: "connect",
+                        action: #selector(connectTapped), icon: "link")
+        configureButton(disconnectButton, title: "Ngắt", identifier: "disconnect",
+                        action: #selector(disconnectTapped), icon: "xmark.circle")
+        configureButton(reconnectButton, title: "Nối lại", identifier: "remote-tool-reconnect",
+                        action: #selector(reconnectTapped), icon: "arrow.clockwise")
         disconnectButton.isEnabled = false
         reconnectButton.isEnabled = false
-        configureButton(dictionaryButton, title: "Chọn từ điển", identifier: "choose-dictionary",
-                        action: #selector(chooseDictionaryTapped))
+        configureButton(dictionaryButton, title: "Từ điển", identifier: "choose-dictionary",
+                        action: #selector(chooseDictionaryTapped), icon: "book")
 
         savedServersButton.setTitle("Máy đã lưu ▾", for: .normal)
+        savedServersButton.setImage(UIImage(systemName: "folder"), for: .normal)
         savedServersButton.accessibilityIdentifier = "remote-tool-connections"
         savedServersButton.accessibilityLabel = "Danh sách máy đã lưu"
         savedServersButton.showsMenuAsPrimaryAction = true
         savedServersButton.contentHorizontalAlignment = .left
         savedServersButton.titleLabel?.font = .systemFont(ofSize: 13, weight: .semibold)
+        savedServersButton.titleLabel?.numberOfLines = 1
+        savedServersButton.titleLabel?.lineBreakMode = .byTruncatingTail
         refreshSavedServersMenu()
 
         configureButton(requestControlButton, title: "Xin quyền", identifier: "remote-tool-request-control",
-                        action: #selector(requestControlTapped))
-        configureButton(fullscreenButton, title: "Toàn màn hình", identifier: "remote-tool-fullscreen",
-                        action: #selector(fullscreenTapped))
-        configureButton(fitButton, title: "Khớp", identifier: "remote-tool-fit", action: #selector(fitTapped))
-        configureButton(toolsButton, title: "Công cụ", identifier: "remote-tool-tools", action: #selector(toolsTapped))
-        configureButton(logButton, title: "Ẩn nhật ký", identifier: "remote-tool-log", action: #selector(logTapped))
-        configureButton(pointerModeButton, title: "Chế độ: Chạm trực tiếp",
-                        identifier: "remote-tool-pointer-mode", action: #selector(pointerModeTapped))
-        configureButton(keepAliveButton, title: "Giữ kết nối: Bật",
-                        identifier: "remote-tool-keep-alive", action: #selector(keepAliveTapped))
+                        action: #selector(requestControlTapped), icon: "hand.raised")
+        configureButton(fullscreenButton, title: "Full màn", identifier: "remote-tool-fullscreen",
+                        action: #selector(fullscreenTapped), icon: "arrow.up.left.and.arrow.down.right")
+        fullscreenButton.accessibilityLabel = "Toàn màn hình"
+        configureButton(fitButton, title: "Khớp", identifier: "remote-tool-fit",
+                        action: #selector(fitTapped), icon: "aspectratio")
+        configureButton(toolsButton, title: "Công cụ", identifier: "remote-tool-tools",
+                        action: #selector(toolsTapped), icon: "ellipsis.circle")
+        configureButton(logButton, title: "Ẩn log", identifier: "remote-tool-log",
+                        action: #selector(logTapped), icon: "doc.text")
+        configureButton(pointerModeButton, title: "Chế độ", identifier: "remote-tool-pointer-mode",
+                        action: #selector(pointerModeTapped), icon: "cursorarrow")
+        configureButton(keepAliveButton, title: "Bật", identifier: "remote-tool-keep-alive",
+                        action: #selector(keepAliveTapped), icon: "bolt.fill")
 
         logView.isEditable = false
         logView.isSelectable = true
@@ -341,7 +383,9 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
         logCard.isHidden = isFullscreen || !logVisible
         reconnectButton.isHidden = isFullscreen
         keepAliveButton.isHidden = isFullscreen
-        fullscreenButton.setTitle(isFullscreen ? "Thoát full" : "Full màn hình", for: .normal)
+        fullscreenButton.setTitle(isFullscreen ? "Thoát" : "Full màn", for: .normal)
+        fullscreenButton.setImage(UIImage(systemName: isFullscreen ? "arrow.down.right.and.arrow.up.left"
+                                          : "arrow.up.left.and.arrow.down.right"), for: .normal)
         fullscreenButton.accessibilityLabel = isFullscreen ? "Thoát toàn màn hình" : "Toàn màn hình"
         logButton.setTitle(logVisible && !isFullscreen ? "Ẩn log" : "Hiện log", for: .normal)
         screenLeadingConstraint?.constant = isFullscreen ? 0 : 16
@@ -469,6 +513,10 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
         }
     }
 
+    public func textFieldDidBeginEditing(_ textField: UITextField) {
+        activeField = textField
+    }
+
     public func textFieldShouldReturn(_ textField: UITextField) -> Bool {
         if textField === idField {
             passwordField.becomeFirstResponder()
@@ -477,6 +525,22 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
             connectTapped()
         }
         return true
+    }
+
+    /// Dán bằng nút biểu tượng trên bàn phím; dùng insertText để ô mật khẩu vẫn che nội dung.
+    @objc private func pasteTapped() {
+        guard let field = activeField, let text = UIPasteboard.general.string else { return }
+        field.becomeFirstResponder()
+        field.selectAll(nil)
+        field.insertText(text)
+    }
+
+    @objc private func copyTapped() {
+        UIPasteboard.general.string = activeField?.text ?? ""
+    }
+
+    @objc private func fieldDoneTapped() {
+        view.endEditing(true)
     }
 
     // MARK: - Tool bar actions
@@ -551,8 +615,11 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
         let mode = ViewerSettings.pointerMode
         screenView.mode = mode
         joystick.isHidden = mode != .joystick
-        let title = "Chế độ: \(mode.shortTitle)"
+        let title = mode.shortTitle
         pointerModeButton.setTitle(title, for: .normal)
+        pointerModeButton.setImage(UIImage(systemName: mode == .joystick ? "gamecontroller"
+                                            : mode == .trackpad ? "hand.point.up.left.fill"
+                                            : "cursorarrow"), for: .normal)
         pointerModeButton.accessibilityLabel = "Chế độ chuột: \(mode.title)"
     }
 
@@ -673,9 +740,10 @@ public final class iOSViewerRootViewController: UIViewController, UITextFieldDel
     private func applyKeepAliveSetting() {
         let enabled = ViewerSettings.keepConnectionInBackground
         let state = enabled ? "Bật" : "Tắt"
-        let title = "Giữ kết nối: \(state)"
-        keepAliveButton.setTitle(title, for: .normal)
-        keepAliveButton.accessibilityLabel = title
+        keepAliveButton.setTitle(state, for: .normal)
+        keepAliveButton.setImage(UIImage(systemName: enabled ? "bolt.fill" : "bolt.slash.fill"),
+                                 for: .normal)
+        keepAliveButton.accessibilityLabel = "Giữ kết nối: \(state)"
     }
 
     // MARK: - Tool sheet
